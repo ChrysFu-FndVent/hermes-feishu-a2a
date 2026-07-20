@@ -1,0 +1,22 @@
+name: multi-agent-qa
+mode: serial
+tasks:
+  - id: plan
+    title: Plan answer
+    agent_id: hermes
+    prompt: Clarify the question, acceptance criteria and required evidence.
+  - id: research
+    title: Research
+    agent_id: workbuddy
+    depends_on: [plan]
+    prompt: Gather evidence and cite sources; distinguish facts from assumptions.
+  - id: implementation
+    title: Implement or verify
+    agent_id: codex
+    depends_on: [research]
+    prompt: Turn the plan into a tested implementation or reproducible procedure.
+  - id: execute
+    title: Execute checks
+    agent_id: qoder
+    depends_on: [implementation]
+    prompt: Run the agreed checks and return raw observations to Hermes.
