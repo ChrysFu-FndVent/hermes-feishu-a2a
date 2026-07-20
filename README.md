@@ -15,7 +15,8 @@ signature, chat and sender allow-lists.
 
 Hermes does not include an LLM planner or an Agent runtime. A caller must submit a
 workflow definition, and every Agent must expose either an HTTP adapter or a Feishu
-adapter that returns results to Hermes.
+adapter that returns results to Hermes. Feishu file intake is a deterministic exception:
+when configured, authorized file messages are routed to one registered intake Agent.
 
 ## Supported platforms
 
@@ -88,6 +89,7 @@ Edit both files and replace every placeholder. The required production settings 
 | `HERMES_FEISHU_VERIFICATION_TOKEN` | Event subscription verification token |
 | `HERMES_FEISHU_ALLOWED_CHAT_IDS` | Comma-separated `oc_...` chat IDs |
 | `HERMES_FEISHU_OWNER_OPEN_IDS` | Comma-separated `ou_...` human owner IDs |
+| `HERMES_FEISHU_FILE_INTAKE_AGENT_ID` | Registered Agent that processes authorized Feishu file messages |
 | `HERMES_AGENTS_CONFIG_PATH` | Agent registry file, normally `config/agents.yaml` |
 
 `HERMES_PORT` controls native Python startup. `HERMES_PUBLISHED_PORT` controls the
@@ -195,9 +197,15 @@ Hermes sends an HTTP `POST` request to the configured endpoint:
     "title": "Review",
     "prompt": "Check the result",
     "agent_id": "reviewer"
-  }
+  },
+  "attachments": []
 }
 ```
+
+When a task contains Feishu attachment references, Hermes downloads and parses them
+at dispatch time. The top-level `attachments` array then contains `name`, `media_type`,
+`text`, and the original safe reference. File bytes and Feishu credentials are never
+sent to the Agent.
 
 The endpoint must return JSON containing `output` or `message`.
 
@@ -208,8 +216,12 @@ The endpoint must return JSON containing `output` or `message`.
 ### Feishu Agents
 
 Hermes sends a native `at` post to the configured `open_id` and waits for the Agent
-adapter to call `POST /events/agent-result`. The callback must include the same
-`run_id`, `task_id` and assigned `agent_id`.
+to reply in that task message thread or call `POST /events/agent-result`. Thread replies
+are matched to the task message and registered Agent `open_id`. API callbacks must
+include the same `run_id`, `task_id` and assigned `agent_id`.
+
+For tasks with attachments, the native post includes the bounded extracted text after
+the task prompt. Large content is truncated at `HERMES_FEISHU_FILE_MAX_AGENT_CHARS`.
 
 ```json
 {
@@ -221,8 +233,8 @@ adapter to call `POST /events/agent-result`. The callback must include the same
 }
 ```
 
-If no callback arrives before the task timeout, Hermes applies the configured retry
-budget and eventually marks the task failed.
+If neither a matching thread reply nor callback arrives before the task timeout, Hermes
+applies the configured retry budget and eventually marks the task failed.
 
 ## Run a workflow
 
@@ -241,16 +253,37 @@ workflow definitions are available in [`examples/`](examples/).
 
 1. Create a Feishu/Lark custom app and enable bot functionality.
 2. Grant message receive/send and chat read permissions required by your tenant.
-3. Subscribe to `im.message.receive_v1`.
-4. Set the HTTPS callback to `https://your-host.example/webhooks/feishu`.
-5. Copy the app ID, app secret, encrypt key and verification token into `.env`.
-6. Add explicit chat and owner open IDs to the allow-lists.
-7. Publish the app version, obtain tenant approval, and add the bot to the target chat.
+3. Grant `im:resource` for files attached directly to messages.
+4. Grant `drive:drive:readonly` for shared `/file/...` cloud-space links.
+5. Subscribe to `im.message.receive_v1`.
+6. Set the HTTPS callback to `https://your-host.example/webhooks/feishu`.
+7. Copy the app ID, app secret, encrypt key and verification token into `.env`.
+8. Add explicit chat and owner open IDs to the allow-lists.
+9. Publish the app version, obtain tenant approval, and add the bot to the target chat.
 
 The webhook authenticates the raw request body before JSON parsing, then checks the
 verification token, chat ID and sender identity. An accepted message is an integration
 event; this service does not automatically translate natural language into a workflow.
 Use an external planner or adapter to call the workflow API when that behavior is needed.
+
+### File intake
+
+Set `HERMES_FEISHU_FILE_INTAKE_AGENT_ID` to an HTTP or Feishu Agent from
+`config/agents.yaml`, grant that Agent `attachment:read`, then make sure it sends an
+`online` heartbeat. When an allow-listed human posts a supported attachment or a
+`/file/...` link, Hermes:
+
+1. extracts the message resource key or Drive file token;
+2. downloads the file with the app's tenant token;
+3. enforces the configured file-count, compressed/uncompressed byte, type and text limits;
+4. extracts text from PDF, DOCX, TXT, Markdown, CSV or JSON;
+5. starts one workflow on the intake Agent; and
+6. replies to the original Feishu message with the Agent result.
+
+Events are claimed by event/message ID so Feishu retries do not create duplicate runs.
+Messages sent by registered Agents or other apps never trigger file intake, preventing
+bot reply loops. Image-only or scanned PDFs require an external OCR adapter; Hermes
+rejects PDFs that contain no extractable text.
 
 See [Feishu permissions and event setup](docs/feishu-permissions.md) for the detailed
 scope and callback checklist.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 
 from .config import Settings
 from .models import (
@@ -17,6 +18,7 @@ from .transport import DispatchTransport, FeishuClient
 from .workflows import WorkflowEngine, now
 
 logger = logging.getLogger(__name__)
+RunCompletion = Callable[[WorkflowRun], Awaitable[None]]
 
 
 class Coordinator:
@@ -75,11 +77,23 @@ class Coordinator:
                 changed.append(self.store.upsert_agent(agent))
         return changed
 
-    def submit(self, workflow: WorkflowDefinition) -> WorkflowRun:
+    def submit(
+        self, workflow: WorkflowDefinition, on_complete: RunCompletion | None = None
+    ) -> WorkflowRun:
         self.store.save_workflow(workflow)
         run = WorkflowRun(workflow_id=workflow.id)
         self.store.save_run(run)
-        job = asyncio.create_task(self.engine.run(workflow, run))
+
+        async def execute() -> WorkflowRun:
+            completed = await self.engine.run(workflow, run)
+            if on_complete is not None:
+                try:
+                    await on_complete(completed)
+                except Exception:
+                    logger.exception("workflow completion callback failed run_id=%s", run.run_id)
+            return completed
+
+        job = asyncio.create_task(execute())
         self._jobs.add(job)
         job.add_done_callback(self._jobs.discard)
         return run

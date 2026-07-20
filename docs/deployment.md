@@ -46,6 +46,11 @@ and `/events/agent-result` on a private network and require `X-Hermes-Token`.
 Set a request body limit and a short proxy timeout. Workflow execution is
 asynchronous: the run endpoint returns a run ID immediately.
 
+File intake requires outbound HTTPS access to the configured Feishu/Lark Open API
+domain and to the selected HTTP Agent endpoint. It does not require a larger inbound
+proxy body limit because files are downloaded from Feishu after the signed event is
+accepted. Tune the `HERMES_FEISHU_FILE_*` limits for the container memory budget.
+
 ## Upgrade and rollback
 
 1. Pin the wheel version, release tag or container digest.

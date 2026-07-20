@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0 - 2026-07-20
+
+- Added bounded Feishu message-resource and Drive file downloads.
+- Added PDF, DOCX and text extraction with file size, type and character limits.
+- Added deterministic file-message routing to a configured intake Agent.
+- Added duplicate-event and bot-loop protection plus result replies in Feishu.
+
 ## 0.1.2 - 2026-07-20
 
 - Added native install and test coverage for macOS, Windows and Linux.

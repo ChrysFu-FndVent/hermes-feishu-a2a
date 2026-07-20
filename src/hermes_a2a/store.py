@@ -4,6 +4,7 @@ import sqlite3
 from json import JSONDecodeError
 from pathlib import Path
 from threading import RLock
+from time import time
 
 from .models import AgentRecord, AgentStatus, WorkflowDefinition, WorkflowRun
 
@@ -16,6 +17,7 @@ class Store:
         self.agents: dict[str, AgentRecord] = {}
         self.workflows: dict[str, WorkflowDefinition] = {}
         self.runs: dict[str, WorkflowRun] = {}
+        self.events: set[str] = set()
         self._db: sqlite3.Connection | None = None
         if database_url.startswith("sqlite:///"):
             path = Path(database_url.removeprefix("sqlite:///"))
@@ -29,6 +31,9 @@ class Store:
             )
             self._db.execute(
                 "CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, payload TEXT NOT NULL)"
+            )
+            self._db.execute(
+                "CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, received_at REAL NOT NULL)"
             )
             self._db.commit()
             self._load()
@@ -69,6 +74,23 @@ class Store:
 
     def get_run(self, run_id: str) -> WorkflowRun | None:
         return self.runs.get(run_id)
+
+    def claim_event(self, event_id: str) -> bool:
+        """Return true exactly once for a Feishu event/message identifier."""
+        with self._lock:
+            if event_id in self.events:
+                return False
+            if self._db is not None:
+                cursor = self._db.execute(
+                    "INSERT OR IGNORE INTO events (id, received_at) VALUES (?, ?)",
+                    (event_id, time()),
+                )
+                self._db.commit()
+                if cursor.rowcount == 0:
+                    self.events.add(event_id)
+                    return False
+            self.events.add(event_id)
+            return True
 
     def _save(self, table: str, key: str, payload: str) -> None:
         if self._db is None:

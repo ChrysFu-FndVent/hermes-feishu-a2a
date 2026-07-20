@@ -64,6 +64,31 @@ class Heartbeat(BaseModel):
     message: str | None = Field(default=None, max_length=500)
 
 
+class AttachmentReference(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["message_resource", "drive_file"]
+    name: str | None = Field(default=None, max_length=255)
+    message_id: str | None = Field(default=None, max_length=128)
+    file_key: str | None = Field(default=None, max_length=256)
+    file_token: str | None = Field(default=None, max_length=256)
+
+    @model_validator(mode="after")
+    def validate_locator(self) -> AttachmentReference:
+        if self.kind == "message_resource" and not (self.message_id and self.file_key):
+            raise ValueError("message resources require message_id and file_key")
+        if self.kind == "drive_file" and not self.file_token:
+            raise ValueError("drive files require file_token")
+        return self
+
+
+class ExtractedAttachment(BaseModel):
+    name: str
+    media_type: str
+    text: str
+    reference: AttachmentReference
+
+
 class TaskSpec(BaseModel):
     id: str = Field(
         default_factory=lambda: f"task-{uuid4().hex[:8]}", pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$"
@@ -71,6 +96,7 @@ class TaskSpec(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     prompt: str = Field(min_length=1, max_length=10000)
     agent_id: str | None = None
+    attachments: list[AttachmentReference] = Field(default_factory=list, max_length=8)
     depends_on: list[str] = Field(default_factory=list)
     timeout_seconds: float | None = Field(default=None, gt=0, le=3600)
     retries: int = Field(default=1, ge=0, le=5)

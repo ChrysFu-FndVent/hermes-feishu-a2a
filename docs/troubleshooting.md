@@ -35,9 +35,22 @@ parsing.
 
 ## An event is accepted but no workflow starts
 
-This is expected unless an integration adapter converts the event into a workflow API
-request. The coordinator validates and exposes the Feishu ingress boundary but does
-not include a natural-language planner.
+Normal text events require an integration adapter because the coordinator does not
+include a natural-language planner. For file events, set
+`HERMES_FEISHU_FILE_INTAKE_AGENT_ID`, register that Agent, and send its online
+heartbeat. The setting must match the Agent ID exactly and the Agent must have
+`attachment:read` permission.
+
+## A Feishu file cannot be read
+
+- A direct message attachment requires the `im:resource` scope.
+- A URL with `/file/{token}` requires `drive:drive:readonly` and file access for the
+  app identity.
+- Publish a new app version and obtain tenant approval after adding scopes.
+- Supported formats are PDF, DOCX, TXT, Markdown, CSV and JSON by default.
+- Image-only PDFs have no extractable text and require an external OCR adapter.
+- Inspect the task error through `GET /runs/{run_id}`; download and parser failures
+  include the actionable scope, size or format reason.
 
 ## An Agent remains offline
 
@@ -47,8 +60,9 @@ send `POST /agents/{id}/heartbeat` with `status: online` and the internal token.
 ## A Feishu task times out
 
 Confirm that the Agent received the native `at` post and that its adapter called
-`POST /events/agent-result` with the exact `run_id`, `task_id` and assigned `agent_id`.
-Late or mismatched callbacks cannot complete the pending task.
+`POST /events/agent-result` with the exact `run_id`, `task_id` and assigned `agent_id`,
+or replied in the task message thread from its registered `open_id`. Late, unrelated
+or identity-mismatched replies cannot complete the pending task.
 
 ## A workflow is stuck or fails
 
