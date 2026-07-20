@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Protocol
-from urllib.parse import unquote
+from urllib.parse import unquote, urlsplit
 from zipfile import ZipFile
 
 from docx import Document
@@ -16,7 +16,10 @@ from pypdf import PdfReader
 from .config import Settings
 from .models import AttachmentReference, ExtractedAttachment
 
-DRIVE_FILE_URL = re.compile(r"https?://[^\s\"'<>]+/file/([A-Za-z0-9_-]+)")
+URL_CANDIDATE = re.compile(r"https?://[^\s\"'<>]+")
+DRIVE_TOKEN_CHARS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
+)
 
 
 class AttachmentError(RuntimeError):
@@ -98,8 +101,21 @@ def _add_drive_references(
     references: list[AttachmentReference],
     seen: set[tuple[str, str]],
 ) -> None:
-    for match in DRIVE_FILE_URL.finditer(value):
-        token = match.group(1)
+    for match in URL_CANDIDATE.finditer(value):
+        segments = urlsplit(match.group(0)).path.split("/")
+        token: str | None = None
+        for index, segment in enumerate(segments[:-1]):
+            if segment != "file":
+                continue
+            token_chars: list[str] = []
+            for character in segments[index + 1]:
+                if character not in DRIVE_TOKEN_CHARS:
+                    break
+                token_chars.append(character)
+            token = "".join(token_chars)
+            break
+        if not token:
+            continue
         key = ("drive_file", token)
         if key in seen:
             continue
