@@ -158,14 +158,15 @@ class AttachmentIngestor:
 
     async def _download(self, reference: AttachmentReference) -> DownloadedFile:
         if reference.kind == "message_resource":
-            assert reference.message_id is not None
-            assert reference.file_key is not None
+            if not reference.message_id or not reference.file_key:
+                raise AttachmentError("message resource is missing its message ID or file key")
             return await self.client.download_message_resource(
                 reference.message_id,
                 reference.file_key,
                 max_bytes=self.settings.feishu_file_max_bytes,
             )
-        assert reference.file_token is not None
+        if not reference.file_token:
+            raise AttachmentError("Drive file reference is missing its file token")
         return await self.client.download_drive_file(
             reference.file_token,
             max_bytes=self.settings.feishu_file_max_bytes,

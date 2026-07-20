@@ -25,13 +25,17 @@ from hermes_a2a.models import (
 from hermes_a2a.store import Store
 from hermes_a2a.transport import DispatchTransport
 
+TEST_API_TOKEN = "test-internal-api-token-32-characters"
+
 
 @pytest.fixture
 def client(tmp_path: Path):
     settings = Settings(
-        internal_api_token="test-token",
+        internal_api_token=TEST_API_TOKEN,
         feishu_verification_token="verify-token",
         feishu_encrypt_key="encrypt-key",
+        feishu_allowed_chat_ids=["oc_demo"],
+        feishu_owner_open_ids=["ou_owner"],
         database_url=f"sqlite:///{tmp_path / 'api.db'}",
     )
     app = create_app(
@@ -50,7 +54,7 @@ async def test_health_and_protected_agent_registration(client: httpx.AsyncClient
 
     created = await client.post(
         "/agents",
-        headers={"X-Hermes-Token": "test-token"},
+        headers={"X-Hermes-Token": TEST_API_TOKEN},
         json={
             "id": "engineer",
             "display_name": "Engineering Agent",
@@ -60,6 +64,31 @@ async def test_health_and_protected_agent_registration(client: httpx.AsyncClient
     )
     assert created.status_code == 200
     assert created.json()["status"] == "offline"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "configured_token",
+    ["", "replace-with-a-long-random-token"],
+)
+async def test_internal_api_fails_closed_without_strong_token(
+    tmp_path: Path, configured_token: str
+) -> None:
+    settings = Settings(
+        internal_api_token=configured_token,
+        database_url=f"sqlite:///{tmp_path / 'invalid-token.db'}",
+    )
+    app = create_app(
+        settings=settings, coordinator=Coordinator(settings, store=Store(settings.database_url))
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as invalid_token_client:
+        response = await invalid_token_client.get(
+            "/agents", headers={"X-Hermes-Token": configured_token}
+        )
+
+    assert response.status_code == 401
 
 
 @pytest.mark.asyncio
@@ -93,8 +122,61 @@ async def test_webhook_signature_and_chat_allow_list(client: httpx.AsyncClient) 
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("chat_ids", "owner_ids", "reason"),
+    [
+        ([], ["ou_owner"], "chat_not_allowed"),
+        (["oc_demo"], [], "sender_not_allowed"),
+    ],
+)
+async def test_webhook_fails_closed_with_empty_allow_list(
+    tmp_path: Path, chat_ids: list[str], owner_ids: list[str], reason: str
+) -> None:
+    settings = Settings(
+        internal_api_token=TEST_API_TOKEN,
+        feishu_verification_token="verify-token",
+        feishu_encrypt_key="encrypt-key",
+        feishu_allowed_chat_ids=chat_ids,
+        feishu_owner_open_ids=owner_ids,
+        database_url=f"sqlite:///{tmp_path / reason}.db",
+    )
+    app = create_app(
+        settings=settings, coordinator=Coordinator(settings, store=Store(settings.database_url))
+    )
+    body = json.dumps(
+        {
+            "header": {"token": "verify-token"},
+            "event": {
+                "sender": {"sender_id": {"open_id": "ou_owner"}},
+                "message": {"chat_id": "oc_demo", "message_id": "om_demo"},
+            },
+        }
+    ).encode()
+    timestamp = str(int(time.time()))
+    nonce = "nonce"
+    signature = hashlib.sha256(
+        timestamp.encode() + nonce.encode() + b"encrypt-key" + body
+    ).hexdigest()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as allow_list_client:
+        response = await allow_list_client.post(
+            "/webhooks/feishu",
+            content=body,
+            headers={
+                "X-Lark-Request-Timestamp": timestamp,
+                "X-Lark-Request-Nonce": nonce,
+                "X-Lark-Signature": signature,
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"accepted": False, "reason": reason}
+
+
+@pytest.mark.asyncio
 async def test_agent_result_must_match_assigned_agent(client: httpx.AsyncClient) -> None:
-    headers = {"X-Hermes-Token": "test-token"}
+    headers = {"X-Hermes-Token": TEST_API_TOKEN}
     await client.post(
         "/agents",
         headers=headers,
@@ -152,7 +234,7 @@ async def test_app_preloads_agent_config(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     settings = Settings(
-        internal_api_token="test-token",
+        internal_api_token=TEST_API_TOKEN,
         agents_config_path=config_path,
         database_url=f"sqlite:///{tmp_path / 'preload.db'}",
     )
@@ -160,7 +242,7 @@ async def test_app_preloads_agent_config(tmp_path: Path) -> None:
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as preload_client:
-        response = await preload_client.get("/agents", headers={"X-Hermes-Token": "test-token"})
+        response = await preload_client.get("/agents", headers={"X-Hermes-Token": TEST_API_TOKEN})
 
     assert response.status_code == 200
     assert [agent["id"] for agent in response.json()] == ["engineer"]
@@ -169,7 +251,7 @@ async def test_app_preloads_agent_config(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_webhook_rejects_unlisted_sender(tmp_path: Path) -> None:
     settings = Settings(
-        internal_api_token="test-token",
+        internal_api_token=TEST_API_TOKEN,
         feishu_verification_token="verify-token",
         feishu_encrypt_key="encrypt-key",
         feishu_allowed_chat_ids=["oc_allowed"],
@@ -245,7 +327,7 @@ async def test_webhook_routes_drive_file_to_intake_agent_and_replies(tmp_path: P
         return httpx.Response(200, json={"output": "Budget file processed"})
 
     settings = Settings(
-        internal_api_token="test-token",
+        internal_api_token=TEST_API_TOKEN,
         feishu_app_id="cli_test",
         feishu_app_secret="app-secret",
         feishu_verification_token="verify-token",

@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="HERMES_", env_file=".env", extra="ignore")
 
     env: str = "development"
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1"
     port: int = Field(default=8080, ge=1, le=65535)
     database_url: str = "sqlite:///./data/hermes.db"
     log_level: str = "INFO"
@@ -70,8 +70,7 @@ class Settings(BaseSettings):
 
     def validate_for_production(self) -> list[str]:
         errors: list[str] = []
-        internal_token = self.internal_api_token.get_secret_value()
-        if len(internal_token) < 32 or _is_placeholder(internal_token):
+        if not self.has_valid_internal_api_token():
             errors.append(
                 "HERMES_INTERNAL_API_TOKEN must be a random value of at least 32 characters"
             )
@@ -98,6 +97,10 @@ class Settings(BaseSettings):
         ):
             errors.append("HERMES_FEISHU_OWNER_OPEN_IDS must contain real owner open IDs")
         return errors
+
+    def has_valid_internal_api_token(self) -> bool:
+        internal_token = self.internal_api_token.get_secret_value()
+        return len(internal_token) >= 32 and not _is_placeholder(internal_token)
 
 
 @lru_cache

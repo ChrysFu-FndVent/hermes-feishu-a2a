@@ -54,7 +54,11 @@ def create_app(settings: Settings | None = None, coordinator: Coordinator | None
 
     def require_internal(token: str | None = Header(default=None, alias="X-Hermes-Token")) -> None:
         expected = resolved.internal_api_token.get_secret_value()
-        if expected and token != expected:
+        if (
+            not resolved.has_valid_internal_api_token()
+            or token is None
+            or not hmac.compare_digest(expected, token)
+        ):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid internal token"
             )
@@ -174,7 +178,7 @@ def create_app(settings: Settings | None = None, coordinator: Coordinator | None
         received_token = payload.get("token") or (
             header.get("token") if isinstance(header, dict) else None
         )
-        if expected_token and (
+        if not expected_token or (
             not isinstance(received_token, str)
             or not hmac.compare_digest(expected_token, received_token)
         ):
@@ -188,7 +192,7 @@ def create_app(settings: Settings | None = None, coordinator: Coordinator | None
         if not isinstance(message, dict):
             raise HTTPException(status_code=400, detail="invalid message object")
         chat_id = message.get("chat_id")
-        if resolved.feishu_allowed_chat_ids and chat_id not in resolved.feishu_allowed_chat_ids:
+        if chat_id not in resolved.feishu_allowed_chat_ids:
             return {"accepted": False, "reason": "chat_not_allowed"}
         sender = event.get("sender", {})
         sender_id = sender.get("sender_id", {}) if isinstance(sender, dict) else {}
@@ -196,7 +200,7 @@ def create_app(settings: Settings | None = None, coordinator: Coordinator | None
         registered_open_ids = {
             agent.open_id for agent in control.store.list_agents() if agent.open_id
         }
-        if resolved.feishu_owner_open_ids and (
+        if (
             sender_open_id not in resolved.feishu_owner_open_ids
             and sender_open_id not in registered_open_ids
         ):
