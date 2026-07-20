@@ -1,5 +1,9 @@
 # Hermes Feishu A2A
 
+<p align="center">
+  <img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=600&size=22&duration=2800&pause=900&color=22C55E&center=true&vCenter=true&repeat=true&width=720&lines=Bounded+workflows+in.+Traceable+results+out.;Plan+%E2%86%92+Dispatch+%E2%86%92+Verify+%E2%86%92+Deliver.;Secure+agent+coordination+inside+Feishu%2FLark." alt="Animated project summary: bounded workflows, traceable results, and secure agent coordination" />
+</p>
+
 A self-hosted workflow coordinator for dispatching bounded tasks to registered
 Agents through HTTP or Feishu/Lark.
 
