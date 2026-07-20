@@ -1,0 +1,13 @@
+{
+  "group": {
+    "id": "oc_replace_with_open_chat_id",
+    "name": "AAA工作群",
+    "secretEnv": "A2A_SIGNING_SECRET"
+  },
+  "agents": [
+    { "id": "hermes", "name": "Hermes", "openId": "ou_replace", "role": "leader", "capabilities": ["plan", "delegate", "review", "aggregate"] },
+    { "id": "codex", "name": "CodeX", "openId": "ou_replace", "role": "deputy", "capabilities": ["execute", "review", "deliver"] },
+    { "id": "qoder", "name": "Qoder", "openId": "ou_replace", "role": "member", "capabilities": ["implement", "test", "diagnose"] },
+    { "id": "workbuddy", "name": "WorkBuddy", "openId": "ou_replace", "role": "support", "capabilities": ["research", "cross-check", "test"] }
+  ]
+}

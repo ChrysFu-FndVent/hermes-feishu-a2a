@@ -1,0 +1,23 @@
+{
+  "name": "hermes-feishu-a2a",
+  "version": "1.0.0",
+  "description": "Hermes coordinator for secure multi-agent workflows in Feishu/Lark group chats",
+  "type": "commonjs",
+  "main": "src/index.js",
+  "bin": {
+    "hermes-feishu-a2a": "src/cli.js"
+  },
+  "scripts": {
+    "test": "node --test",
+    "start": "node src/cli.js serve",
+    "config:validate": "node scripts/validate-config.js",
+    "config:generate": "node scripts/generate-config.js",
+    "group:init": "node scripts/init-group.js",
+    "build": "node --check src/index.js"
+  },
+  "engines": { "node": ">=18" },
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/Leochens/hermes-feishu-a2a.git" },
+  "keywords": ["feishu", "lark", "hermes", "multi-agent", "a2a", "orchestration"],
+  "files": ["src", "scripts", "config", "docs", "examples", "tests", "Dockerfile", "docker-compose.yml", ".env.example", "README.md", "CONTRIBUTING.md", "CHANGELOG.md", "LICENSE"]
+}
