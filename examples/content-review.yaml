@@ -1,0 +1,15 @@
+name: content-review
+mode: parallel
+tasks:
+  - id: policy
+    title: Policy review
+    agent_id: hermes
+    prompt: Classify the content against the published policy and list uncertain cases.
+  - id: language
+    title: Language quality
+    agent_id: workbuddy
+    prompt: Check clarity, tone, localization and potentially harmful ambiguity.
+  - id: technical
+    title: Technical validation
+    agent_id: codex
+    prompt: Verify links, code snippets and technical claims.

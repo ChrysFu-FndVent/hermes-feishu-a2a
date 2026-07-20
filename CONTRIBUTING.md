@@ -1,10 +1,17 @@
 # Contributing
 
-Keep contributions small, testable and provider-neutral.
+Thanks for contributing to Hermes Feishu A2A.
 
-1. Open an issue for behavior changes or security concerns.
-2. Create a branch from `main`, make the smallest coherent change, and add tests.
-3. Run `npm test`, `npm run config:validate`, and `node --check src/index.js`.
-4. Explain Feishu API assumptions, compatibility impact and rollback steps in the pull request.
+## Workflow
 
-Use Node built-ins where practical. Keep secrets out of fixtures and logs; use `ou_example` and `oc_example` placeholders. Preserve explicit task transitions and do not make model prose authoritative for dispatch. Report vulnerabilities privately rather than publishing credentials or exploit details.
+1. Create a focused branch from the default branch.
+2. Explain the user-visible behavior and the threat model for integration changes.
+3. Add or update tests for normal, timeout and identity-failure paths.
+4. Run `ruff check .`, `pytest` and `python scripts/check_secrets.py`.
+5. Keep examples placeholder-only. Do not commit Feishu credentials, tokens,
+   message exports or screenshots containing private IDs.
+
+## Pull requests
+
+Describe the affected API, migration/rollback path and compatibility impact. A
+maintainer may request a staging webhook test before merging transport changes.

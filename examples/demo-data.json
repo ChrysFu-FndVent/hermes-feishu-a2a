@@ -1,7 +1,0 @@
-{
-  "chatId": "oc_demo_group",
-  "requester": "ou_demo_human",
-  "task": "Compare three migration options and identify risks.",
-  "agents": ["hermes", "codex", "qoder", "workbuddy"],
-  "expectedReport": ["completed", "evidence", "risks", "needsDecision"]
-}
