@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 
+from . import __version__
 from .config import Settings, get_settings
 from .coordinator import Coordinator
 from .models import (
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 def create_app(settings: Settings | None = None, coordinator: Coordinator | None = None) -> FastAPI:
     resolved = settings or get_settings()
     brain = coordinator or Coordinator(resolved)
-    app = FastAPI(title="Hermes Feishu A2A", version="0.1.0")
+    app = FastAPI(title="Hermes Feishu A2A", version=__version__)
     app.state.coordinator = brain
     app.state.settings = resolved
 
@@ -40,7 +41,7 @@ def create_app(settings: Settings | None = None, coordinator: Coordinator | None
         return {
             "name": "hermes-feishu-a2a",
             "role": "Hermes group brain and lead",
-            "version": "0.1.0",
+            "version": __version__,
         }
 
     @app.get("/healthz")
