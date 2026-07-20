@@ -47,29 +47,7 @@ this service owns coordination, identity, and workflow state.
 
 ## How it works
 
-```mermaid
-flowchart LR
-    U["Human owner<br/>Feishu group"] -->|"@Hermes + goal"| F["Feishu event ingress"]
-    F -->|"signature + allow-list"| H["Hermes coordinator"]
-    H --> P["Plan and decompose"]
-    P --> R["Agent registry"]
-    R --> W["Workflow engine"]
-    W -->|"native @ post"| C["CodeX"]
-    W -->|"native @ post"| Q["Qoder"]
-    W -->|"native @ post"| B["WorkBuddy"]
-    C --> V["Result verification"]
-    Q --> V
-    B --> V
-    V --> S["Hermes synthesis"]
-    S -->|"single final result"| U
-
-    classDef human fill:#0f766e,color:#fff,stroke:#115e59
-    classDef brain fill:#166534,color:#fff,stroke:#14532d
-    classDef worker fill:#1f2937,color:#fff,stroke:#4b5563
-    class U human
-    class H,P,W,V,S brain
-    class C,Q,B worker
-```
+![Hermes Feishu A2A architecture](docs/assets/readme-architecture.svg)
 
 <details>
 <summary><strong>Open the end-to-end message sequence</strong></summary>
@@ -192,18 +170,7 @@ failures mark it `degraded`.
 
 ### Task lifecycle
 
-```mermaid
-stateDiagram-v2
-    [*] --> pending
-    pending --> running: Agent is healthy
-    running --> succeeded: Result accepted
-    running --> running: Retry within budget
-    running --> failed: Timeout or exhausted retries
-    pending --> skipped: Dependency failed
-    succeeded --> [*]
-    failed --> [*]
-    skipped --> [*]
-```
+![Task lifecycle](docs/assets/task-lifecycle.svg)
 
 ## Feishu setup
 
@@ -272,17 +239,7 @@ runs every ready task concurrently while preserving dependency barriers.
 
 ## Security model
 
-```mermaid
-flowchart TD
-    E["Inbound event"] --> S{"Valid Feishu signature?"}
-    S -->|No| X["Reject: 401"]
-    S -->|Yes| C{"Allowed chat?"}
-    C -->|No| Y["Ignore and audit"]
-    C -->|Yes| O{"Allowed human owner<br/>or registered Agent?"}
-    O -->|No| Z["Reject dispatch"]
-    O -->|Yes| D["Create bounded workflow"]
-    D --> T["Dispatch with explicit Agent identity"]
-```
+![Security model](docs/assets/security-model.svg)
 
 - Raw webhook bytes are authenticated before JSON parsing.
 - Internal APIs require a separate token and should also be network-restricted.
