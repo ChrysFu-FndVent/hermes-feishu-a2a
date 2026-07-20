@@ -43,6 +43,15 @@ def test_parse_native_file_message() -> None:
     assert references[0].file_key == "file_key"
 
 
+def test_parse_drive_link_without_regex_backtracking() -> None:
+    hostile_prefix = "http://" * 10000
+    _, references = parse_feishu_message(
+        {"content": {"text": f"{hostile_prefix}/file/token_safe"}}
+    )
+
+    assert [item.file_token for item in references] == ["token_safe"]
+
+
 def test_extract_docx_paragraphs_and_tables() -> None:
     document = Document()
     document.add_paragraph("Budget assumptions")
