@@ -10,7 +10,7 @@ permissions:
   packages: write
 
 env:
-  IMAGE_NAME: ghcr.io/chrysfufndvent/hermes-feishu-a2a
+  IMAGE_NAME: ghcr.io/chrysfu-fndvent/hermes-feishu-a2a
 
 jobs:
   publish:
