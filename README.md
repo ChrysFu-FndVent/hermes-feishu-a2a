@@ -303,7 +303,7 @@ the operational rule behind connector-only delivery.
 | Windows | Python 3.11+, Windows Service or Docker Desktop |
 | Container platforms | Multi-platform image for `linux/amd64` and `linux/arm64` |
 
-Tags such as `v0.1.0` create a GitHub Release with wheel, source distribution and
+Tags such as `v0.1.1` create a GitHub Release with wheel, source distribution and
 SHA-256 checksums, plus a container image:
 
 ```bash

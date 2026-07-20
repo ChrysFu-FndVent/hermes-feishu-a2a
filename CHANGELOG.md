@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1 - 2026-07-20
+
+- Reworked the README with animated project messaging, Mermaid diagrams, API and role references, and expanded setup guidance.
+- Fixed the GitHub Container Registry namespace so multi-platform images publish under the correct account owner.
+- Centralized the API-reported version on the package `__version__` value.
+
 ## 0.1.0 - 2026-07-19
 
 - Initial release of the Hermes coordinator.
