@@ -44,7 +44,8 @@ heartbeat. The setting must match the Agent ID exactly and the Agent must have
 ## A Feishu file cannot be read
 
 - A direct message attachment requires the `im:resource` scope.
-- A URL with `/file/{token}` requires `drive:drive:readonly` and file access for the
+- A URL with `/file/{token}` requires the application-identity scope
+  `drive:file:download` (or the broader `drive:drive:readonly`) and file access for the
   app identity.
 - Publish a new app version and obtain tenant approval after adding scopes.
 - Supported formats are PDF, DOCX, TXT, Markdown, CSV and JSON by default.

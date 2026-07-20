@@ -254,7 +254,9 @@ workflow definitions are available in [`examples/`](examples/).
 1. Create a Feishu/Lark custom app and enable bot functionality.
 2. Grant message receive/send and chat read permissions required by your tenant.
 3. Grant `im:resource` for files attached directly to messages.
-4. Grant `drive:drive:readonly` for shared `/file/...` cloud-space links.
+4. Grant the application-identity scope `drive:file:download` for shared
+   `/file/...` cloud-space links. The broader `drive:drive:readonly` scope also
+   works, but is not required.
 5. Subscribe to `im.message.receive_v1`.
 6. Set the HTTPS callback to `https://your-host.example/webhooks/feishu`.
 7. Copy the app ID, app secret, encrypt key and verification token into `.env`.

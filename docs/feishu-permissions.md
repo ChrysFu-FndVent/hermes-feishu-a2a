@@ -15,7 +15,7 @@ deployment:
 | Read chat metadata | `im:chat:read` | Validate target chats |
 | Read members | `im:chat.members:read` | Obtain stable `open_id` values |
 | Download message files | `im:resource` | Read files attached directly to messages |
-| Download cloud-space files | `drive:drive:readonly` | Read shared `/file/...` links |
+| Download cloud-space files | `drive:file:download` | Download shared `/file/...` links with the minimum application-identity scope |
 | Receive bot-authored mentions | `im:message.group_at_msg.include_bot:readonly` | Allow Feishu Agents to receive coordinator tasks |
 
 Exact scope names can vary between Feishu and Lark tenants. Use the current developer
@@ -64,8 +64,8 @@ task timeout.
 - `99991679` or missing scope: grant the exact scope, publish a new app version and
   obtain tenant approval again.
 - File download `403`, `91403`, or permission denied: confirm `im:resource` or
-  `drive:drive:readonly` is approved and the file is shared with an identity the app
-  can access.
+  `drive:file:download` is approved for the application identity and the file is
+  shared with an identity the app can access.
 - HTTP 401 from the webhook: compare the encrypt key, verification token, timestamp
   headers and raw-body signature calculation.
 - `sender_not_allowed`: add the human owner or registered Agent `open_id` to the
