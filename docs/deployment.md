@@ -1,30 +1,56 @@
 # Deployment guide
 
-## Local
+Complete the configuration and validation steps in the README before using any of
+these deployment paths.
 
-Use the Quick Start in the README, then run `pytest` and `hermes-a2a validate-config`.
-Keep `.env` outside source control and use a disposable Feishu group for tests.
+## Native Python
+
+The package supports Python 3.11 or newer on macOS, Windows and Linux. Use the
+platform-specific virtual environment commands in the README and run the executable
+from that environment without relying on shell activation.
+
+For a long-running service, configure the operating system's normal process manager
+to run `hermes-a2a serve` from the virtual environment:
+
+- Linux: systemd or another supervised service manager.
+- macOS: launchd or a supervised process manager.
+- Windows: Task Scheduler, NSSM, or another service wrapper approved by the operator.
+
+The repository does not install operating-system service definitions. Configure
+restart policy, working directory, environment file and log collection explicitly.
 
 ## Docker
 
-`docker compose up --build` runs the API with a health check. Mount `./data` only
-for development. Production deployments should use a persistent volume with
-restricted permissions or a database implementation behind `Store`.
+`docker compose up --build -d` starts the API with a health check. The Compose file
+mounts `config/agents.yaml` read-only and stores SQLite data in the `hermes-data`
+named volume.
+
+Docker Desktop must use Linux containers on macOS and Windows. On Linux, Docker
+Engine and the Compose v2 plugin are required.
+
+Inspect the resolved configuration before startup:
+
+```bash
+docker compose config
+```
+
+Back up the data volume before upgrades. `docker compose down` preserves it;
+`docker compose down --volumes` deletes it.
 
 ## Reverse proxy
 
 Terminate TLS at Caddy, Nginx or a managed load balancer. Forward only
-`/webhooks/feishu` from the public internet. Keep `/agents`, `/workflows` and
-`/runs` on a private network or require the internal token plus network policy.
-Set a request body limit and a short upstream timeout; the workflow engine is
-asynchronous and returns a run ID immediately.
+`/webhooks/feishu` from the public internet. Keep `/agents`, `/workflows`, `/runs`
+and `/events/agent-result` on a private network and require `X-Hermes-Token`.
 
-## Upgrades and rollback
+Set a request body limit and a short proxy timeout. Workflow execution is
+asynchronous: the run endpoint returns a run ID immediately.
 
-1. Pin the image or package version.
-2. Run migrations (if a custom persistent store is used) before switching traffic.
-3. Run `/readyz` and a synthetic signed webhook in staging.
-4. Roll back the image and database migration together if a workflow schema changes.
+## Upgrade and rollback
 
-The public API is versioned by the project release. Add fields compatibly and do
-not remove an Agent permission or task field without a migration note.
+1. Pin the wheel version, release tag or container digest.
+2. Back up the SQLite database or persistent volume.
+3. Start the new version in staging and verify `/readyz`.
+4. Run one HTTP Agent task and one Feishu callback task.
+5. Roll back the application and database snapshot together if persisted models
+   become incompatible.

@@ -3,15 +3,15 @@ mode: serial
 tasks:
   - id: gather
     title: Gather data
-    agent_id: qoder
+    agent_id: researcher
     prompt: Collect the approved input files and report their schema and freshness.
   - id: model
     title: Build analysis
-    agent_id: workbuddy
+    agent_id: engineer
     depends_on: [gather]
     prompt: Analyze the data, state assumptions, and produce a concise findings table.
   - id: review
     title: Review result
-    agent_id: codex
+    agent_id: reviewer
     depends_on: [model]
     prompt: Reproduce key calculations and identify correctness or performance risks.

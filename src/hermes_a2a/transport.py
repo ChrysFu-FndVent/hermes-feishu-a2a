@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -65,7 +66,10 @@ class FeishuClient:
             if reply_to
             else f"{self.settings.feishu_domain.rstrip('/')}/open-apis/im/v1/messages?receive_id_type=chat_id"
         )
-        body: dict[str, Any] = {"msg_type": "post", "content": {"zh_cn": {"content": content}}}
+        body: dict[str, Any] = {
+            "msg_type": "post",
+            "content": json.dumps({"zh_cn": {"content": content}}, ensure_ascii=False),
+        }
         if not reply_to:
             body["receive_id"] = chat_id
         response = await self.client.post(
@@ -82,6 +86,7 @@ class DispatchTransport:
     def __init__(self, feishu: FeishuClient | None = None, http: httpx.AsyncClient | None = None):
         self.feishu = feishu
         self.http = http or httpx.AsyncClient(timeout=30)
+        self._pending_results: dict[tuple[str, str], asyncio.Future[str]] = {}
 
     async def dispatch(self, agent: AgentRecord, task: TaskSpec, run_id: str) -> str:
         if agent.transport == "http":
@@ -104,7 +109,32 @@ class DispatchTransport:
             "user_name": agent.display_name,
         }
         text = {"tag": "text", "text": f"\n[Hermes task {run_id}/{task.id}] {task.prompt}"}
-        return await self.feishu.send_post(chat_id, [[mention, text]])
+        key = (run_id, task.id)
+        future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
+        self._pending_results[key] = future
+        try:
+            await self.feishu.send_post(chat_id, [[mention, text]])
+            return await future
+        finally:
+            self._pending_results.pop(key, None)
+
+    def resolve_result(
+        self,
+        run_id: str,
+        task_id: str,
+        *,
+        output: str,
+        error: str | None,
+        success: bool,
+    ) -> bool:
+        future = self._pending_results.get((run_id, task_id))
+        if future is None or future.done():
+            return False
+        if success:
+            future.set_result(output)
+        else:
+            future.set_exception(RuntimeError(error or "Agent reported failure"))
+        return True
 
 
 async def close_transport(transport: DispatchTransport) -> None:

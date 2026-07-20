@@ -13,14 +13,14 @@ from .models import (
     WorkflowRun,
 )
 from .store import Store
-from .transport import DispatchTransport
+from .transport import DispatchTransport, FeishuClient
 from .workflows import WorkflowEngine, now
 
 logger = logging.getLogger(__name__)
 
 
 class Coordinator:
-    """Hermes brain: owns routing, task lifecycle, health state and synthesis."""
+    """Own Agent routing, task lifecycle, health state, and persisted run results."""
 
     def __init__(
         self,
@@ -30,7 +30,7 @@ class Coordinator:
     ):
         self.settings = settings
         self.store = store or Store(settings.database_url)
-        self.transport = transport or DispatchTransport()
+        self.transport = transport or DispatchTransport(feishu=FeishuClient(settings))
         self.engine = WorkflowEngine(
             self.store,
             self.transport,

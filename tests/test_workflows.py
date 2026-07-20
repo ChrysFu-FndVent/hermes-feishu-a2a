@@ -56,7 +56,12 @@ def register(store: Store, agent_id: str = "worker") -> None:
     from hermes_a2a.coordinator import Coordinator
 
     Coordinator(Settings(internal_api_token="test"), store=store).register(
-        AgentRegistration(id=agent_id, display_name=agent_id, role="worker")
+        AgentRegistration(
+            id=agent_id,
+            display_name=agent_id,
+            role="worker",
+            endpoint="https://agent.example/execute",
+        )
     )
     store.agents[agent_id].status = AgentStatus.online
 

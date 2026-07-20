@@ -18,6 +18,7 @@ def serve(host: str | None = None, port: int | None = None) -> None:
         "hermes_a2a.api:create_app",
         host=host or settings.host,
         port=port or settings.port,
+        log_level=settings.log_level.lower(),
         factory=True,
     )
 
@@ -26,19 +27,14 @@ def serve(host: str | None = None, port: int | None = None) -> None:
 def validate_config(path: Path = typer.Option(Path("config/agents.yaml"), exists=True)) -> None:
     settings = Settings()
     errors = settings.validate_for_production()
-    agents = load_agent_config(path)
-    ids = [str(item.get("id", "")) for item in agents]
-    if len(ids) != len(set(ids)):
-        raise typer.BadParameter("agent ids must be unique")
+    try:
+        agents = load_agent_config(path)
+    except (OSError, ValueError) as exc:
+        agents = []
+        errors.append(str(exc))
+    ids = [agent.id for agent in agents]
     if errors:
         for error in errors:
             typer.echo(f"ERROR: {error}")
         raise typer.Exit(1)
     typer.echo(json.dumps({"ok": True, "agents": ids}, ensure_ascii=False, indent=2))
-
-
-@app.command("init-group")
-def init_group(output: Path = typer.Option(Path("group-announcement.md"))) -> None:
-    template = Path(__file__).parents[2] / "config" / "group-announcement.md"
-    output.write_text(template.read_text(encoding="utf-8"), encoding="utf-8")
-    typer.echo(f"wrote {output}")

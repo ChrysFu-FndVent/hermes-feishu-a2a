@@ -1,279 +1,299 @@
-<div align="center">
-
 # Hermes Feishu A2A
 
-<img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=600&size=22&duration=2800&pause=900&color=22C55E&center=true&vCenter=true&repeat=true&width=720&lines=Hermes+is+the+brain.+Agents+are+the+team.;Plan+%E2%86%92+Dispatch+%E2%86%92+Verify+%E2%86%92+Deliver.;Secure+multi-agent+workflows+inside+Feishu." alt="Animated project summary: plan, dispatch, verify, and deliver" />
-
-**A self-hosted control plane for running a secure, observable AI-agent team inside Feishu/Lark.**
+A self-hosted workflow coordinator for dispatching bounded tasks to registered
+Agents through HTTP or Feishu/Lark.
 
 [![CI](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/actions/workflows/ci.yml)
-[![Release](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/actions/workflows/release.yml/badge.svg)](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/actions/workflows/release.yml)
-[![Container](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/actions/workflows/publish-container.yml/badge.svg)](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/actions/workflows/publish-container.yml)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](Dockerfile)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F4C430.svg)](LICENSE)
 
-<img src="https://skillicons.dev/icons?i=python,fastapi,docker,githubactions" alt="Python, FastAPI, Docker and GitHub Actions" />
+Hermes stores Agent identities and workflow state, enforces dependency barriers,
+dispatches ready tasks, applies timeouts and retries, and exposes run results through
+an authenticated API. Feishu webhook events are verified against the configured
+signature, chat and sender allow-lists.
 
-[Quick start](#quick-start) · [How it works](#how-it-works) · [Agent contract](#agent-contract) · [Feishu setup](#feishu-setup) · [Examples](#example-workflows) · [Operations](docs/deployment.md)
+Hermes does not include an LLM planner or an Agent runtime. A caller must submit a
+workflow definition, and every Agent must expose either an HTTP adapter or a Feishu
+adapter that returns results to Hermes.
 
-</div>
+## Supported platforms
 
----
+| Platform | Native installation | Container installation | Continuous validation |
+| --- | --- | --- | --- |
+| macOS | Python 3.11 or newer | Docker Desktop | `macos-latest` |
+| Windows | Python 3.11 or newer | Docker Desktop with Linux containers | `windows-latest` |
+| Linux | Python 3.11 or newer | Docker Engine and Compose v2 | `ubuntu-latest` |
 
-Hermes is the group brain and lead. It turns a human request into bounded tasks,
-selects registered Agents, tracks heartbeats, executes serial or dependency-aware
-parallel workflows, retries transient failures, and owns the single final-delivery
-path. CodeX, Qoder, WorkBuddy, and future Agents keep their own runtimes and tools;
-this service owns coordination, identity, and workflow state.
+The Python wheel is platform-independent. The published container supports
+`linux/amd64` and `linux/arm64`.
 
-## Project at a glance
-
-| Capability | What the project does | Operational guarantee |
-| --- | --- | --- |
-| Agent registry | Stores identity, role, capabilities, transport and permissions | One record per real Agent identity |
-| Workflow engine | Runs serial pipelines and dependency-aware parallel DAGs | Dependency barriers and bounded concurrency |
-| Health monitoring | Consumes heartbeats and marks stale Agents offline | No silent disappearance from the team |
-| Failure recovery | Applies task timeouts, exponential backoff and retry budgets | Failed dispatches become visible and auditable |
-| Feishu transport | Sends structured native `at` posts to registered `open_id` values | No display-name identity guessing |
-| Result synthesis | Collects task results into one run-level output | One coordinator-owned delivery path |
-| Security boundary | Verifies webhook bytes, chat allow-lists and internal API tokens | No credentials in prompts or repository data |
-
-> [!IMPORTANT]
-> This project coordinates Agents; it does not impersonate or remotely control
-> vendor desktop applications. Every Agent needs an explicit HTTP or Feishu
-> adapter that can receive a task and return a result.
-
-## How it works
+## Architecture
 
 ![Hermes Feishu A2A architecture](docs/assets/readme-architecture.svg)
-
-<details>
-<summary><strong>Open the end-to-end message sequence</strong></summary>
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Owner as Human owner
-    participant Feishu
-    participant Hermes as Hermes coordinator
-    participant Agent as Selected Agent
-    Owner->>Feishu: @Hermes with objective and constraints
-    Feishu->>Hermes: Signed im.message.receive_v1 event
-    Hermes->>Hermes: Verify signature, chat and owner
-    Hermes->>Hermes: Build workflow and acceptance criteria
-    Hermes->>Agent: Dispatch task by HTTP or native Feishu @
-    Agent-->>Hermes: Heartbeat and structured result
-    Hermes->>Hermes: Validate evidence, retry or synthesize
-    Hermes-->>Owner: One final, traceable response
-```
-
-</details>
-
-### Role model
-
-| Agent | Team role | Typical capabilities | Delivery rule |
-| --- | --- | --- | --- |
-| **Hermes** | Brain and lead | Planning, delegation, synthesis, conflict resolution | Owns intake and acceptance |
-| **CodeX** | Engineering deputy | Coding, debugging, review, build | Delivers only after coordinator approval |
-| **Qoder** | Technical executor | Shell, files, diagnostics, test execution | Reports evidence to Hermes |
-| **WorkBuddy** | Collaboration support | Research, writing, analysis, cross-checking | Reports findings and gaps to Hermes |
 
 ## Quick start
 
 ### 1. Install
 
+Prerequisites: Git and Python 3.11 or newer.
+
+macOS or Linux:
+
 ```bash
 git clone https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git
 cd hermes-feishu-a2a
-python3.11 -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -e '.[dev]'
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install .
 ```
 
+Windows PowerShell:
+
+```powershell
+git clone https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git
+Set-Location hermes-feishu-a2a
+py -3.11 -m venv .venv
+.venv\Scripts\python.exe -m pip install --upgrade pip
+.venv\Scripts\python.exe -m pip install .
+```
+
+These commands do not require shell activation, so they also work when PowerShell
+script execution is restricted.
+
 ### 2. Configure
+
+macOS or Linux:
 
 ```bash
 cp .env.example .env
 cp config/agents.example.yaml config/agents.yaml
 ```
 
-Replace every placeholder in `.env` and `config/agents.yaml`. Generate independent,
-random values for `HERMES_SECRET_KEY` and `HERMES_INTERNAL_API_TOKEN`; never reuse a
-Feishu App Secret as an internal API token.
+Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+Copy-Item config\agents.example.yaml config\agents.yaml
+```
+
+Edit both files and replace every placeholder. The required production settings are:
+
+| Variable | Purpose |
+| --- | --- |
+| `HERMES_INTERNAL_API_TOKEN` | Random value of at least 32 characters for protected APIs |
+| `HERMES_FEISHU_APP_ID` | Feishu/Lark custom app ID |
+| `HERMES_FEISHU_APP_SECRET` | Custom app secret |
+| `HERMES_FEISHU_ENCRYPT_KEY` | Event subscription encrypt key used for signatures |
+| `HERMES_FEISHU_VERIFICATION_TOKEN` | Event subscription verification token |
+| `HERMES_FEISHU_ALLOWED_CHAT_IDS` | Comma-separated `oc_...` chat IDs |
+| `HERMES_FEISHU_OWNER_OPEN_IDS` | Comma-separated `ou_...` human owner IDs |
+| `HERMES_AGENTS_CONFIG_PATH` | Agent registry file, normally `config/agents.yaml` |
+
+`HERMES_PORT` controls native Python startup. `HERMES_PUBLISHED_PORT` controls the
+host port used by Docker Compose; the container always listens on port 8080.
+
+Generate the internal API token locally:
 
 ```bash
-hermes-a2a validate-config --path config/agents.yaml
+python3 -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+On Windows, use `py -3.11` instead of `python3`.
+
+Each HTTP Agent needs an `endpoint`. Each Feishu Agent needs an `open_id` and
+`metadata.chat_id`. Invalid Agent records stop validation and startup instead of
+failing during the first dispatch.
+
+Validate the complete configuration:
+
+macOS or Linux:
+
+```bash
+.venv/bin/hermes-a2a validate-config --path config/agents.yaml
+```
+
+Windows PowerShell:
+
+```powershell
+.venv\Scripts\hermes-a2a.exe validate-config --path config\agents.yaml
 ```
 
 ### 3. Run
 
-```bash
-hermes-a2a serve
-```
-
-The API starts at `http://localhost:8080`. Interactive OpenAPI documentation is
-available at [`http://localhost:8080/docs`](http://localhost:8080/docs).
+macOS or Linux:
 
 ```bash
-curl http://localhost:8080/healthz
-curl -H 'X-Hermes-Token: replace-with-a-long-random-token' \
-  http://localhost:8080/agents
+.venv/bin/hermes-a2a serve
 ```
 
-<details>
-<summary><strong>Run with Docker instead</strong></summary>
+Windows PowerShell:
+
+```powershell
+.venv\Scripts\hermes-a2a.exe serve
+```
+
+Open these URLs after startup:
+
+- `http://127.0.0.1:8080/healthz` for process health.
+- `http://127.0.0.1:8080/readyz` for production configuration readiness.
+- `http://127.0.0.1:8080/docs` for the interactive API.
+
+`/readyz` returns HTTP 503 in production until all required Feishu values and
+allow-lists are real, non-placeholder values.
+
+## Docker
+
+Docker uses the same `.env` and `config/agents.yaml` files created above.
 
 ```bash
 docker compose up --build -d
+docker compose ps
 docker compose logs -f hermes
-curl http://localhost:8080/readyz
 ```
 
-The compose stack persists SQLite data under `./data`. Production deployments
-should terminate TLS at a reverse proxy and inject `.env` values through a managed
-secret store.
+The Compose file uses a named volume for SQLite data. This avoids host directory
+ownership problems on Linux and works with Docker Desktop on macOS and Windows.
 
-</details>
+Stop the service without deleting data:
+
+```bash
+docker compose down
+```
+
+Delete the named data volume only when you intentionally want to erase all Agent,
+workflow and run records:
+
+```bash
+docker compose down --volumes
+```
 
 ## Agent contract
 
-An Agent registers through `POST /agents`, then sends a heartbeat at least every
-two minutes. Two missed heartbeat intervals mark it `offline`; repeated dispatch
-failures mark it `degraded`.
+Agents are preloaded from `config/agents.yaml` with `offline` status. An adapter must
+send a heartbeat before Hermes dispatches work to it.
 
 ```json
 {
-  "id": "codex",
-  "display_name": "CodeX",
-  "role": "code implementation and delivery",
-  "capabilities": ["coding", "review", "build"],
-  "transport": "http",
-  "endpoint": "https://codex.internal/agent",
-  "permissions": ["task:execute", "result:write"]
+  "status": "online",
+  "capabilities": ["review", "testing"]
 }
 ```
 
-| Endpoint | Authentication | Purpose |
-| --- | --- | --- |
-| `GET /healthz` | Public, network-restricted | Liveness probe |
-| `GET /readyz` | Public, network-restricted | Production configuration readiness |
-| `GET /metrics` | Public, network-restricted | Agent and workflow counters |
-| `GET/POST /agents` | `X-Hermes-Token` | List or register Agents |
-| `POST /agents/{id}/heartbeat` | `X-Hermes-Token` | Update health and capabilities |
-| `POST /workflows` | `X-Hermes-Token` | Store a workflow definition |
-| `POST /workflows/{id}/run` | `X-Hermes-Token` | Start execution |
-| `GET /runs/{run_id}` | `X-Hermes-Token` | Inspect state and results |
-| `POST /events/agent-result` | `X-Hermes-Token` | Accept asynchronous Agent output |
-| `POST /webhooks/feishu` | Feishu signature | Receive Feishu events |
+Send this payload to `POST /agents/{agent_id}/heartbeat` with the
+`X-Hermes-Token` header.
 
-### Task lifecycle
+### HTTP Agents
+
+Hermes sends an HTTP `POST` request to the configured endpoint:
+
+```json
+{
+  "run_id": "run-123",
+  "task": {
+    "id": "review",
+    "title": "Review",
+    "prompt": "Check the result",
+    "agent_id": "reviewer"
+  }
+}
+```
+
+The endpoint must return JSON containing `output` or `message`.
+
+```json
+{"output": "Review completed"}
+```
+
+### Feishu Agents
+
+Hermes sends a native `at` post to the configured `open_id` and waits for the Agent
+adapter to call `POST /events/agent-result`. The callback must include the same
+`run_id`, `task_id` and assigned `agent_id`.
+
+```json
+{
+  "run_id": "run-123",
+  "task_id": "review",
+  "agent_id": "reviewer",
+  "success": true,
+  "output": "Review completed"
+}
+```
+
+If no callback arrives before the task timeout, Hermes applies the configured retry
+budget and eventually marks the task failed.
+
+## Run a workflow
+
+1. Confirm the target Agents are `online` with `GET /agents`.
+2. Submit a JSON workflow definition to `POST /workflows`.
+3. Start it with `POST /workflows/{workflow_id}/run`.
+4. Poll `GET /runs/{run_id}` until the run is `succeeded` or `failed`.
+
+All four endpoints require `X-Hermes-Token`. The interactive API at `/docs` is the
+most portable way to perform the first run on macOS, Windows and Linux. Example
+workflow definitions are available in [`examples/`](examples/).
 
 ![Task lifecycle](docs/assets/task-lifecycle.svg)
 
 ## Feishu setup
 
-Each team member needs its own Feishu custom app and bot identity. Add every bot
-to the collaboration group before testing.
+1. Create a Feishu/Lark custom app and enable bot functionality.
+2. Grant message receive/send and chat read permissions required by your tenant.
+3. Subscribe to `im.message.receive_v1`.
+4. Set the HTTPS callback to `https://your-host.example/webhooks/feishu`.
+5. Copy the app ID, app secret, encrypt key and verification token into `.env`.
+6. Add explicit chat and owner open IDs to the allow-lists.
+7. Publish the app version, obtain tenant approval, and add the bot to the target chat.
 
-1. Enable message read/send and chat read scopes for Hermes.
-2. Enable `im:message.group_at_msg.include_bot:readonly` for native bot-to-bot
-   mention delivery.
-3. Enable `im:chat.announcement:read` when an Agent must read the pinned group
-   announcement.
-4. Subscribe to `im.message.receive_v1` and point HTTPS callbacks to
-   `/webhooks/feishu`, or use a compatible long-connection adapter.
-5. Publish a new application version and obtain tenant administrator approval.
-6. Configure explicit `oc_...` chat and `ou_...` owner allow-lists. The numeric ID
-   shown in a client URL is not an Open API chat ID.
+The webhook authenticates the raw request body before JSON parsing, then checks the
+verification token, chat ID and sender identity. An accepted message is an integration
+event; this service does not automatically translate natural language into a workflow.
+Use an external planner or adapter to call the workflow API when that behavior is needed.
 
-See the complete [scope matrix and webhook checklist](docs/feishu-permissions.md),
-then pin the provided [group announcement](config/group-announcement.md).
-
-<details>
-<summary><strong>Configuration reference</strong></summary>
-
-| Variable | Purpose |
-| --- | --- |
-| `HERMES_FEISHU_APP_ID` | Hermes coordinator app ID (`cli_...`) |
-| `HERMES_FEISHU_APP_SECRET` | Coordinator App Secret; secret manager only |
-| `HERMES_FEISHU_ENCRYPT_KEY` | Encrypted event payload key |
-| `HERMES_FEISHU_VERIFICATION_TOKEN` | Webhook verification token |
-| `HERMES_FEISHU_ALLOWED_CHAT_IDS` | Comma-separated `oc_...` allow-list |
-| `HERMES_FEISHU_OWNER_OPEN_IDS` | Human owners allowed to initiate workflows |
-| `HERMES_INTERNAL_API_TOKEN` | Protects registration and workflow APIs |
-| `HERMES_SECRET_ENCRYPTION_KEY` | Optional Fernet key for persisted secrets |
-| `HERMES_DATABASE_URL` | SQLite URL by default; replace the Store boundary for PostgreSQL |
-
-All settings use the `HERMES_` prefix. See [`.env.example`](.env.example) and
-[`config/agents.example.yaml`](config/agents.example.yaml).
-
-</details>
-
-## Example workflows
-
-| Scenario | Execution shape | Team contribution | Definition |
-| --- | --- | --- | --- |
-| Content review | Parallel fan-out | Policy, language and technical checks | [`content-review.yaml`](examples/content-review.yaml) |
-| Data analysis | Serial pipeline | Gather, model, then independently review | [`data-analysis.yaml`](examples/data-analysis.yaml) |
-| Multi-agent Q&A | Evidence chain | Plan, research, implement and execute checks | [`multi-agent-qa.yaml`](examples/multi-agent-qa.yaml) |
-
-```yaml
-name: content-review
-mode: parallel
-tasks:
-  - id: policy
-    agent_id: hermes
-    prompt: Classify content against the published policy.
-  - id: language
-    agent_id: workbuddy
-    prompt: Check clarity, tone and harmful ambiguity.
-  - id: technical
-    agent_id: codex
-    prompt: Verify links, code and technical claims.
-```
-
-The engine honors `depends_on`, `timeout_seconds`, and `retries`. Parallel mode
-runs every ready task concurrently while preserving dependency barriers.
-
-## Security model
+See [Feishu permissions and event setup](docs/feishu-permissions.md) for the detailed
+scope and callback checklist.
 
 ![Security model](docs/assets/security-model.svg)
 
-- Raw webhook bytes are authenticated before JSON parsing.
-- Internal APIs require a separate token and should also be network-restricted.
-- Secrets use `SecretStr`, are redacted from logs, and may be encrypted with Fernet.
-- Display names never establish identity; routing uses registered IDs and allow-lists.
-- Direct Agent message sending is disabled by policy to prevent cross-bot identity leaks.
-- Example files contain placeholders only. Run `python scripts/check_secrets.py` in CI.
+## API reference
 
-Read the [identity-boundary postmortem](docs/identity-boundary-postmortem.md) for
-the operational rule behind connector-only delivery.
+| Endpoint | Authentication | Purpose |
+| --- | --- | --- |
+| `GET /healthz` | Network restriction | Process health |
+| `GET /readyz` | Network restriction | Production configuration readiness |
+| `GET /metrics` | Network restriction | Agent and workflow counters |
+| `GET/POST /agents` | `X-Hermes-Token` | List or register Agents |
+| `POST /agents/{id}/heartbeat` | `X-Hermes-Token` | Update Agent health |
+| `POST /workflows` | `X-Hermes-Token` | Store a workflow definition |
+| `POST /workflows/{id}/run` | `X-Hermes-Token` | Start execution |
+| `GET /runs/{run_id}` | `X-Hermes-Token` | Inspect task states and results |
+| `POST /events/agent-result` | `X-Hermes-Token` | Complete an asynchronous Agent task |
+| `POST /webhooks/feishu` | Feishu signature and token | Receive Feishu events |
 
-## Deployment and compatibility
+## Production deployment
 
-| Target | Supported path |
-| --- | --- |
-| Linux | Python 3.11+, systemd or Docker, TLS reverse proxy |
-| macOS | Python 3.11+, launchd or Docker Desktop |
-| Windows | Python 3.11+, Windows Service or Docker Desktop |
-| Container platforms | Multi-platform image for `linux/amd64` and `linux/arm64` |
+- Terminate TLS at a reverse proxy or managed load balancer.
+- Expose only `/webhooks/feishu` publicly.
+- Keep internal APIs on a private network in addition to using the internal token.
+- Pin a release tag or container digest instead of deploying `main` directly.
+- Back up the SQLite volume before upgrades.
 
-Tags such as `v0.1.1` create a GitHub Release with wheel, source distribution and
-SHA-256 checksums, plus a container image:
+Published release assets include a platform-independent wheel and source archive.
+Published container tags support `linux/amd64` and `linux/arm64`:
 
 ```bash
 docker pull ghcr.io/chrysfu-fndvent/hermes-feishu-a2a:latest
 ```
 
 See [deployment](docs/deployment.md), [best practices](docs/best-practices.md), and
-[troubleshooting](docs/troubleshooting.md) for production guidance and upgrade notes.
+[troubleshooting](docs/troubleshooting.md) for operational details.
 
 ## Development
 
 ```bash
-pip install -e '.[dev]'
+python -m pip install -e '.[dev]'
 ruff check .
 mypy src
 pytest -q
@@ -281,14 +301,5 @@ python scripts/check_secrets.py
 python -m build
 ```
 
-Contributions are welcome. Read [`CONTRIBUTING.md`](CONTRIBUTING.md), keep real
-credentials out of commits, and include tests for every workflow or security
-change. This project is released under the [`MIT License`](LICENSE).
-
----
-
-<div align="center">
-
-**Hermes coordinates. Agents execute. Evidence decides.**
-
-</div>
+See [CONTRIBUTING.md](CONTRIBUTING.md). This project is released under the
+[MIT License](LICENSE).

@@ -1,56 +1,56 @@
 # Feishu permissions and event setup
 
-This guide intentionally uses placeholders. Replace `cli_xxx`, `ou_xxx` and
-`oc_xxx` with values from your own tenant; never paste app secrets into a public
-issue or repository.
+Replace every placeholder with values from your own Feishu/Lark tenant. Never put
+app secrets, encrypt keys, verification tokens or private IDs in the repository.
 
 ## Coordinator app
 
-In the developer console, create the Hermes app and enable the narrowest scopes
-needed by your workflow:
+Create one custom app for Hermes and enable only the capabilities required by the
+deployment:
 
-| Capability | Typical scope family | Why |
+| Capability | Typical scope or event | Purpose |
 | --- | --- | --- |
-| Receive messages | `im:message.receive_v1` event subscription | Inbound group events |
-| Read messages | `im:message:readonly` | Recover context and audit replies |
-| Send/reply | `im:message:send` / tenant equivalent | Final Hermes replies and native mentions |
-| Read chat metadata | `im:chat:read` | Validate chat membership and names |
-| Read members | `im:chat.members:read` | Resolve stable `open_id` values |
-| Manage members (optional) | `im:chat.members:write_only` | Only if Hermes provisions a group |
-| Manage chat (optional) | `im:chat:update` | Only if Hermes updates metadata |
+| Receive messages | `im.message.receive_v1` | Deliver group events to the webhook |
+| Send messages | `im:message:send` or tenant equivalent | Dispatch Feishu Agent tasks |
+| Read chat metadata | `im:chat:read` | Validate target chats |
+| Read members | `im:chat.members:read` | Obtain stable `open_id` values |
 
-Scope names vary between Feishu/Lark tenants and API versions. Treat the
-developer console's current scope list as authoritative and record the exact
-approved list in your change log.
+Exact scope names can vary between Feishu and Lark tenants. Use the current developer
+console as the source of truth and do not add write scopes that the deployment does
+not need.
 
-## Agent apps
-
-An execution Agent usually needs message receive, message read and message send
-only when it is allowed to post directly. This project recommends **not** granting
-direct send to WorkBuddy-style Agents: let the connector post the final text so
-the app identity is deterministic. Add member-management scopes only to a
-dedicated provisioning app, never to every worker.
-
-## Webhook
+## Event subscription
 
 1. Set the callback URL to `https://your-host.example/webhooks/feishu`.
-2. Set `HERMES_FEISHU_VERIFICATION_TOKEN` and, if enabled by the tenant,
-   `HERMES_FEISHU_ENCRYPT_KEY` in the deployment secret store.
+2. Configure the same encrypt key and verification token in `.env` and the developer
+   console.
 3. Subscribe to `im.message.receive_v1`.
-4. Allow only the intended `oc_...` chats using `HERMES_FEISHU_ALLOWED_CHAT_IDS`.
-5. Confirm the challenge request in a staging deployment before publishing.
-6. Monitor 401 signature failures and 230002 membership failures separately.
+4. Add the target `oc_...` IDs to `HERMES_FEISHU_ALLOWED_CHAT_IDS`.
+5. Add authorized human `ou_...` IDs to `HERMES_FEISHU_OWNER_OPEN_IDS`.
+6. Publish the app version, obtain tenant approval, and add the bot to the chat.
 
-The sample endpoint authenticates the raw request body with timestamp, nonce and
-HMAC before parsing. If your tenant uses a different signed envelope, implement
-that variant in `security.py` and add a fixture before changing the endpoint.
+The webhook verifies `X-Lark-Signature` as SHA-256 over the request timestamp,
+request nonce, encrypt key and raw request body. It accepts both the current
+`X-Lark-Request-*` timestamp/nonce headers and the older `X-Lark-*` names. After
+decryption, it compares the event verification token and applies chat and sender
+allow-lists.
 
-## Common errors
+An accepted webhook event is not automatically converted into a workflow. Connect
+an external planner or deterministic adapter to the workflow API if incoming chat
+messages should start runs.
 
-- `230002`: the bot/app is not in the group or the app is outside its availability range.
-- `99991679` or missing scope: add the exact scope in the developer console and
-  republish; user-delegated scopes also require a fresh OAuth grant.
-- Duplicate replies: check that an Agent is not both calling a CLI sender and
-  returning a final connector response.
-- Wrong sender identity: inspect the app ID on the outgoing message and remove
-  default CLI profiles from Agent runtime instructions.
+## Feishu Agent callbacks
+
+When a task targets a Feishu Agent, Hermes sends a native `at` post and waits for the
+Agent adapter to call `/events/agent-result` with the matching run, task and Agent IDs.
+The callback requires `X-Hermes-Token` and must arrive before the task timeout.
+
+## Common Feishu errors
+
+- `230002`: the bot is not in the target chat or is outside its availability range.
+- `99991679` or missing scope: grant the exact scope, publish a new app version and
+  obtain tenant approval again.
+- HTTP 401 from the webhook: compare the encrypt key, verification token, timestamp
+  headers and raw-body signature calculation.
+- `sender_not_allowed`: add the human owner or registered Agent `open_id` to the
+  appropriate configuration.
