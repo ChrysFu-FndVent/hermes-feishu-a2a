@@ -11,6 +11,7 @@ from typing import Any
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 
 from . import __version__
+from .attachments import parse_feishu_message
 from .config import Settings, get_settings, load_agent_config
 from .coordinator import Coordinator
 from .models import (
@@ -18,7 +19,9 @@ from .models import (
     AgentRegistration,
     AgentResultEvent,
     Heartbeat,
+    TaskSpec,
     WorkflowDefinition,
+    WorkflowRun,
 )
 from .security import decrypt_feishu_event, verify_webhook_signature
 from .transport import close_transport
@@ -32,6 +35,12 @@ def create_app(settings: Settings | None = None, coordinator: Coordinator | None
     if coordinator is None and resolved.agents_config_path.is_file():
         for registration in load_agent_config(resolved.agents_config_path):
             control.register(registration)
+    if resolved.feishu_file_intake_agent_id:
+        intake_agent = control.store.get_agent(resolved.feishu_file_intake_agent_id)
+        if not intake_agent:
+            raise ValueError("HERMES_FEISHU_FILE_INTAKE_AGENT_ID must reference a registered Agent")
+        if "attachment:read" not in intake_agent.permissions:
+            raise ValueError("the Feishu file intake Agent requires attachment:read permission")
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -197,6 +206,88 @@ def create_app(settings: Settings | None = None, coordinator: Coordinator | None
             chat_id,
             message.get("message_id"),
         )
-        return {"accepted": True}
+        text, attachments = parse_feishu_message(message)
+        parent_message_ids = [
+            value
+            for value in (message.get("parent_id"), message.get("root_id"))
+            if isinstance(value, str) and value
+        ]
+        if (
+            sender_open_id in registered_open_ids
+            and text
+            and control.transport.resolve_feishu_reply(
+                parent_message_ids,
+                sender_open_id,
+                text,
+            )
+        ):
+            return {"accepted": True, "agent_result": True}
+        if len(attachments) > resolved.feishu_file_max_count:
+            return {
+                "accepted": False,
+                "reason": "too_many_attachments",
+                "attachments": len(attachments),
+            }
+        intake_agent_id = resolved.feishu_file_intake_agent_id
+        sender_type = sender.get("sender_type") if isinstance(sender, dict) else None
+        is_agent_sender = sender_type == "app" or sender_open_id in registered_open_ids
+        message_id = message.get("message_id")
+        if not (
+            intake_agent_id
+            and attachments
+            and isinstance(chat_id, str)
+            and isinstance(message_id, str)
+            and not is_agent_sender
+        ):
+            return {"accepted": True, "attachments": len(attachments)}
+
+        event_id = header.get("event_id") if isinstance(header, dict) else None
+        dedupe_id = str(event_id or message_id)
+        if not control.store.claim_event(dedupe_id):
+            return {"accepted": True, "duplicate": True, "attachments": len(attachments)}
+
+        workflow = WorkflowDefinition(
+            id=f"feishu-file-{message_id}",
+            name=f"Feishu file intake {message_id}",
+            chat_id=chat_id,
+            created_by=sender_open_id,
+            tasks=[
+                TaskSpec(
+                    id="process-files",
+                    title="Process Feishu files",
+                    prompt=(
+                        text[:10000]
+                        or "Read the attached files and provide the requested analysis."
+                    ),
+                    agent_id=intake_agent_id,
+                    attachments=attachments,
+                )
+            ],
+        )
+
+        async def reply_with_result(completed: WorkflowRun) -> None:
+            feishu = control.transport.feishu
+            if feishu is None:
+                return
+            if completed.state == "succeeded":
+                reply = completed.final_output or "The attached files were processed successfully."
+            else:
+                errors = [
+                    result.error for result in completed.task_results.values() if result.error
+                ]
+                reply = f"File processing failed: {errors[0] if errors else completed.error or 'unknown error'}"
+            await feishu.send_text(
+                chat_id,
+                reply[: resolved.feishu_file_result_reply_chars],
+                reply_to=message_id,
+            )
+
+        run = control.submit(workflow, on_complete=reply_with_result)
+        return {
+            "accepted": True,
+            "attachments": len(attachments),
+            "workflow_id": workflow.id,
+            "run_id": run.run_id,
+        }
 
     return app

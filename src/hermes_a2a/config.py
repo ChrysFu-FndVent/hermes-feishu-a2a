@@ -33,8 +33,26 @@ class Settings(BaseSettings):
     feishu_webhook_signature_required: bool = True
     feishu_allowed_chat_ids: Annotated[list[str], NoDecode] = Field(default_factory=list)
     feishu_owner_open_ids: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    feishu_file_intake_agent_id: str = ""
+    feishu_file_max_count: int = Field(default=8, ge=1, le=8)
+    feishu_file_max_bytes: int = Field(default=20 * 1024 * 1024, ge=1024, le=100 * 1024 * 1024)
+    feishu_file_max_uncompressed_bytes: int = Field(
+        default=100 * 1024 * 1024, ge=1024, le=500 * 1024 * 1024
+    )
+    feishu_file_max_extracted_chars: int = Field(default=60000, ge=1000, le=500000)
+    feishu_file_max_total_chars: int = Field(default=120000, ge=1000, le=1000000)
+    feishu_file_max_agent_chars: int = Field(default=30000, ge=1000, le=100000)
+    feishu_file_result_reply_chars: int = Field(default=24000, ge=1000, le=50000)
+    feishu_file_allowed_extensions: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: [".pdf", ".docx", ".txt", ".md", ".csv", ".json"]
+    )
 
-    @field_validator("feishu_allowed_chat_ids", "feishu_owner_open_ids", mode="before")
+    @field_validator(
+        "feishu_allowed_chat_ids",
+        "feishu_owner_open_ids",
+        "feishu_file_allowed_extensions",
+        mode="before",
+    )
     @classmethod
     def parse_csv(cls, value: object) -> list[str]:
         if value is None:
@@ -44,6 +62,11 @@ class Settings(BaseSettings):
         if isinstance(value, (list, tuple, set)):
             return [str(item).strip() for item in value if str(item).strip()]
         raise TypeError("expected a comma-separated string or a list of strings")
+
+    @field_validator("feishu_file_allowed_extensions")
+    @classmethod
+    def normalize_extensions(cls, value: list[str]) -> list[str]:
+        return [item.lower() if item.startswith(".") else f".{item.lower()}" for item in value]
 
     def validate_for_production(self) -> list[str]:
         errors: list[str] = []

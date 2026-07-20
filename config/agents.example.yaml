@@ -6,7 +6,7 @@ agents:
     capabilities: [research, writing, analysis]
     transport: http
     endpoint: https://researcher.example.internal/agent
-    permissions: [task:execute, result:write]
+    permissions: [task:execute, result:write, attachment:read]
 
   - id: engineer
     display_name: Engineering Agent

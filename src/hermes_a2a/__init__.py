@@ -1,3 +1,3 @@
 """Hermes Feishu A2A coordinator."""
 
-__version__ = "0.1.2"
+__version__ = "0.2.0"
