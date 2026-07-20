@@ -17,7 +17,7 @@
   },
   "engines": { "node": ">=18" },
   "license": "MIT",
-  "repository": { "type": "git", "url": "git+https://github.com/Leochens/hermes-feishu-a2a.git" },
+  "repository": { "type": "git", "url": "git+https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git" },
   "keywords": ["feishu", "lark", "hermes", "multi-agent", "a2a", "orchestration"],
   "files": ["src", "scripts", "config", "docs", "examples", "tests", "Dockerfile", "docker-compose.yml", ".env.example", "README.md", "CONTRIBUTING.md", "CHANGELOG.md", "LICENSE"]
 }
