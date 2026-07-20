@@ -1,11 +1,17 @@
-FROM node:20-alpine
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
 WORKDIR /app
-COPY package.json README.md LICENSE .env.example ./
+COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
-COPY config ./config
-COPY scripts ./scripts
-COPY docs ./docs
-ENV NODE_ENV=production HOST=0.0.0.0 PORT=8787
-EXPOSE 8787
-USER node
-CMD ["node", "src/cli.js", "serve"]
+RUN pip install --no-cache-dir .
+
+RUN useradd --create-home --uid 10001 hermes \
+    && mkdir -p /app/data \
+    && chown -R hermes:hermes /app
+USER hermes
+
+EXPOSE 8080
+CMD ["hermes-a2a", "serve"]

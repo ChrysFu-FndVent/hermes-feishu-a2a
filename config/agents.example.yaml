@@ -1,0 +1,42 @@
+# Copy to config/agents.yaml and replace every placeholder. Never commit secrets.
+agents:
+  - id: hermes
+    display_name: Hermes
+    role: group brain and lead
+    capabilities: [planning, delegation, synthesis, conflict-resolution]
+    transport: http
+    endpoint: http://hermes.example.internal/agent
+    permissions: [workflow:read, workflow:write, agent:dispatch, result:read]
+    metadata:
+      chat_id: oc_replace_me
+
+  - id: codex
+    display_name: CodeX
+    role: code implementation and delivery
+    capabilities: [coding, debugging, review, build]
+    transport: feishu
+    open_id: ou_replace_me
+    permissions: [task:execute, result:write]
+    metadata:
+      chat_id: oc_replace_me
+
+  - id: qoder
+    display_name: Qoder
+    role: execution, file operations and terminal support
+    capabilities: [shell, files, testing]
+    transport: feishu
+    open_id: ou_replace_me
+    permissions: [task:execute, result:write]
+    metadata:
+      chat_id: oc_replace_me
+
+  - id: workbuddy
+    display_name: WorkBuddy
+    role: research, analysis and general task execution
+    capabilities: [research, writing, analysis, automation]
+    transport: feishu
+    open_id: ou_replace_me
+    permissions: [task:execute, result:write]
+    metadata:
+      chat_id: oc_replace_me
+      direct_message_send: false

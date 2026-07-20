@@ -1,8 +1,10 @@
 # Changelog
 
-## 1.0.0 - 2026-07-20
+## 0.1.0 - 2026-07-19
 
-- Added Hermes coordinator, agent registry and task lifecycle store.
-- Added serial/parallel workflow runner and result aggregation.
-- Added HMAC-signed envelopes, Feishu tenant-token client and announcement reader.
-- Added health checks, recovery hooks, webhook service, Docker deployment and configuration tooling.
+- Initial release of the Hermes coordinator.
+- Added Agent registry, heartbeats, health sweep and role/capability metadata.
+- Added serial and dependency-aware parallel workflow execution with retries.
+- Added signed Feishu webhook ingress, token client and native mention posts.
+- Added SQLite persistence boundary, CLI validation, Docker deployment and examples.
+- Added identity-boundary, permissions and group-announcement documentation.
