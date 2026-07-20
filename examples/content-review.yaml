@@ -3,13 +3,13 @@ mode: parallel
 tasks:
   - id: policy
     title: Policy review
-    agent_id: hermes
+    agent_id: reviewer
     prompt: Classify the content against the published policy and list uncertain cases.
   - id: language
     title: Language quality
-    agent_id: workbuddy
+    agent_id: researcher
     prompt: Check clarity, tone, localization and potentially harmful ambiguity.
   - id: technical
     title: Technical validation
-    agent_id: codex
+    agent_id: engineer
     prompt: Verify links, code snippets and technical claims.

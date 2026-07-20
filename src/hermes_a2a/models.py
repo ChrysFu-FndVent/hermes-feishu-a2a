@@ -5,7 +5,7 @@ from enum import StrEnum
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 def utc_now() -> datetime:
@@ -33,6 +33,20 @@ class AgentRegistration(BaseModel):
     permissions: list[str] = Field(default_factory=list)
     heartbeat_interval_seconds: int = Field(default=60, ge=10, le=3600)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_transport_target(self) -> AgentRegistration:
+        if self.transport == "http":
+            if not self.endpoint:
+                raise ValueError("HTTP agents require endpoint")
+            if not self.endpoint.startswith(("http://", "https://")):
+                raise ValueError("HTTP agent endpoint must use http:// or https://")
+        if self.transport == "feishu":
+            if not self.open_id:
+                raise ValueError("Feishu agents require open_id")
+            if not isinstance(self.metadata.get("chat_id"), str) or not self.metadata["chat_id"]:
+                raise ValueError("Feishu agents require metadata.chat_id")
+        return self
 
 
 class AgentRecord(AgentRegistration):

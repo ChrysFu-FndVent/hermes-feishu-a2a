@@ -1,33 +1,57 @@
 # Troubleshooting
 
-## Hermes does not react
+## Installation fails
 
-Check that the event subscription is enabled, the callback is reachable, the
-signature token matches, and the `chat_id` is in the allow-list. Inspect HTTP 401,
-chat filtering and the Feishu event delivery retry log.
+Confirm Python 3.11 or newer with `python --version`. On Windows, use
+`py -3.11` and the `.venv\Scripts\python.exe` commands from the README. On macOS or
+Linux, use `.venv/bin/python`. Do not mix a system `pip` with the project virtual
+environment.
 
-## One Agent is silent
+## Configuration validation fails
 
-Check `/agents`, then send a heartbeat. An Agent is marked offline after two
-heartbeat intervals. Verify its `open_id`, group membership and app availability
-range; display names are not stable identifiers.
+Run `hermes-a2a validate-config --path config/agents.yaml` and address every reported
+item. Placeholder values such as `replace-me`, `cli_xxx`, `oc_xxx` and `ou_xxx` are
+rejected for production configuration.
 
-## Another Agent's name appears on a reply
+HTTP Agents require an `endpoint`. Feishu Agents require both `open_id` and
+`metadata.chat_id`.
 
-This is an identity collision. Search the Agent runtime for direct `lark-cli` or
-Feishu API sends, inspect the outgoing app ID, and make the connector the only
-sender. Remove default CLI profiles from prompts and rotate any leaked token.
+## `/readyz` returns 503
 
-## Duplicate final replies
+The process is running, but required production settings are missing or still contain
+placeholders. Inspect the JSON response for the exact variable names. Use `/healthz`
+only as a process liveness check.
 
-A task must return text once. Do not send a message from inside the Agent and then
-return the same content for connector delivery. Use the run ID and idempotency key
-when integrating an external queue.
+## Docker cannot write the database
 
-## Workflows stuck in queued/running
+Use the repository's named-volume Compose configuration. If a customized deployment
+bind-mounts a host directory, make that directory writable by container UID `10001`.
 
-Check `/metrics`, Agent heartbeats, task dependencies and timeout/retry settings.
-A dependency cycle is rejected by the engine when no task is ready.
+## Feishu webhook returns 401
 
-For the complete identity incident analysis and recovery sequence, see
-[`identity-boundary-postmortem.md`](identity-boundary-postmortem.md).
+Verify that the app's encrypt key and verification token match `.env`. A reverse proxy
+must forward the request body unchanged; signature verification happens before JSON
+parsing.
+
+## An event is accepted but no workflow starts
+
+This is expected unless an integration adapter converts the event into a workflow API
+request. The coordinator validates and exposes the Feishu ingress boundary but does
+not include a natural-language planner.
+
+## An Agent remains offline
+
+Agent records loaded from `config/agents.yaml` start offline. The Agent adapter must
+send `POST /agents/{id}/heartbeat` with `status: online` and the internal token.
+
+## A Feishu task times out
+
+Confirm that the Agent received the native `at` post and that its adapter called
+`POST /events/agent-result` with the exact `run_id`, `task_id` and assigned `agent_id`.
+Late or mismatched callbacks cannot complete the pending task.
+
+## A workflow is stuck or fails
+
+Inspect `/runs/{run_id}` and `/metrics`. Check Agent heartbeats, dependency IDs,
+endpoint reachability, timeout settings and retry counts. A dependency cycle fails
+when no pending task can become ready.

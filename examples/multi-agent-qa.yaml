@@ -3,20 +3,20 @@ mode: serial
 tasks:
   - id: plan
     title: Plan answer
-    agent_id: hermes
+    agent_id: researcher
     prompt: Clarify the question, acceptance criteria and required evidence.
   - id: research
     title: Research
-    agent_id: workbuddy
+    agent_id: researcher
     depends_on: [plan]
     prompt: Gather evidence and cite sources; distinguish facts from assumptions.
   - id: implementation
     title: Implement or verify
-    agent_id: codex
+    agent_id: engineer
     depends_on: [research]
     prompt: Turn the plan into a tested implementation or reproducible procedure.
   - id: execute
     title: Execute checks
-    agent_id: qoder
+    agent_id: reviewer
     depends_on: [implementation]
     prompt: Run the agreed checks and return raw observations to Hermes.

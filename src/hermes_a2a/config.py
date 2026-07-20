@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Annotated
 
 import yaml
 from pydantic import Field, SecretStr, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+from .models import AgentRegistration
 
 
 class Settings(BaseSettings):
@@ -16,8 +19,8 @@ class Settings(BaseSettings):
     port: int = Field(default=8080, ge=1, le=65535)
     database_url: str = "sqlite:///./data/hermes.db"
     log_level: str = "INFO"
-    secret_key: SecretStr = SecretStr("change-me-in-production")
     internal_api_token: SecretStr = SecretStr("")
+    agents_config_path: Path = Path("config/agents.yaml")
     max_concurrency: int = Field(default=8, ge=1, le=128)
     default_task_timeout_seconds: float = Field(default=120, gt=0, le=3600)
     webhook_tolerance_seconds: int = Field(default=300, ge=0, le=3600)
@@ -28,10 +31,8 @@ class Settings(BaseSettings):
     feishu_encrypt_key: SecretStr = SecretStr("")
     feishu_verification_token: SecretStr = SecretStr("")
     feishu_webhook_signature_required: bool = True
-    feishu_allowed_chat_ids: list[str] = Field(default_factory=list)
-    feishu_owner_open_ids: list[str] = Field(default_factory=list)
-    feishu_token_cache_path: Path = Path("./data/feishu-token.json")
-    secret_encryption_key: SecretStr = SecretStr("")
+    feishu_allowed_chat_ids: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    feishu_owner_open_ids: Annotated[list[str], NoDecode] = Field(default_factory=list)
 
     @field_validator("feishu_allowed_chat_ids", "feishu_owner_open_ids", mode="before")
     @classmethod
@@ -46,20 +47,33 @@ class Settings(BaseSettings):
 
     def validate_for_production(self) -> list[str]:
         errors: list[str] = []
-        if (
-            self.env == "production"
-            and self.secret_key.get_secret_value() == "change-me-in-production"
-        ):
-            errors.append("HERMES_SECRET_KEY must be changed in production")
-        if (
-            self.feishu_webhook_signature_required
-            and not self.feishu_verification_token.get_secret_value()
-        ):
+        internal_token = self.internal_api_token.get_secret_value()
+        if len(internal_token) < 32 or _is_placeholder(internal_token):
             errors.append(
-                "HERMES_FEISHU_VERIFICATION_TOKEN is required when signatures are enabled"
+                "HERMES_INTERNAL_API_TOKEN must be a random value of at least 32 characters"
             )
-        if not self.internal_api_token.get_secret_value():
-            errors.append("HERMES_INTERNAL_API_TOKEN is required for protected APIs")
+        if self.feishu_webhook_signature_required:
+            encrypt_key = self.feishu_encrypt_key.get_secret_value()
+            if not encrypt_key or _is_placeholder(encrypt_key):
+                errors.append(
+                    "HERMES_FEISHU_ENCRYPT_KEY is required when webhook signatures are enabled"
+                )
+        verification_token = self.feishu_verification_token.get_secret_value()
+        if not verification_token or _is_placeholder(verification_token):
+            errors.append("HERMES_FEISHU_VERIFICATION_TOKEN is required")
+        if not self.feishu_app_id or _is_placeholder(self.feishu_app_id):
+            errors.append("HERMES_FEISHU_APP_ID is required")
+        app_secret = self.feishu_app_secret.get_secret_value()
+        if not app_secret or _is_placeholder(app_secret):
+            errors.append("HERMES_FEISHU_APP_SECRET is required")
+        if not self.feishu_allowed_chat_ids or any(
+            _is_placeholder(value) for value in self.feishu_allowed_chat_ids
+        ):
+            errors.append("HERMES_FEISHU_ALLOWED_CHAT_IDS must contain real chat IDs")
+        if not self.feishu_owner_open_ids or any(
+            _is_placeholder(value) for value in self.feishu_owner_open_ids
+        ):
+            errors.append("HERMES_FEISHU_OWNER_OPEN_IDS must contain real owner open IDs")
         return errors
 
 
@@ -68,10 +82,33 @@ def get_settings() -> Settings:
     return Settings()
 
 
-def load_agent_config(path: str | Path) -> list[dict[str, object]]:
-    with Path(path).open(encoding="utf-8") as handle:
-        document = yaml.safe_load(handle) or {}
+def _is_placeholder(value: str) -> bool:
+    normalized = value.strip().lower()
+    return not normalized or any(
+        marker in normalized for marker in ("replace", "example", "xxx", "change-me")
+    )
+
+
+def load_agent_config(path: str | Path) -> list[AgentRegistration]:
+    try:
+        with Path(path).open(encoding="utf-8") as handle:
+            document = yaml.safe_load(handle) or {}
+    except yaml.YAMLError as exc:
+        raise ValueError(f"invalid agent config YAML: {exc}") from exc
+    if not isinstance(document, dict):
+        raise ValueError("agents.yaml must contain a mapping")
     agents = document.get("agents", [])
     if not isinstance(agents, list):
         raise ValueError("agents.yaml must contain an 'agents' list")
-    return agents
+    registrations = [AgentRegistration.model_validate(agent) for agent in agents]
+    ids = [registration.id for registration in registrations]
+    if len(ids) != len(set(ids)):
+        raise ValueError("agent ids must be unique")
+    for registration in registrations:
+        targets = [registration.endpoint or "", registration.open_id or ""]
+        chat_id = registration.metadata.get("chat_id")
+        if isinstance(chat_id, str):
+            targets.append(chat_id)
+        if any(_is_placeholder(value) for value in targets if value):
+            raise ValueError(f"agent {registration.id} contains placeholder transport values")
+    return registrations

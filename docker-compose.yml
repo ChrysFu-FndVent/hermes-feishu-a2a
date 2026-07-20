@@ -3,12 +3,19 @@ services:
     build: .
     restart: unless-stopped
     env_file: .env
+    environment:
+      HERMES_HOST: 0.0.0.0
+      HERMES_PORT: 8080
     ports:
-      - "${HERMES_PORT:-8080}:8080"
+      - "${HERMES_PUBLISHED_PORT:-8080}:8080"
     volumes:
-      - ./data:/app/data
+      - hermes-data:/app/data
+      - ./config/agents.yaml:/app/config/agents.yaml:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz')"]
       interval: 30s
       timeout: 5s
       retries: 3
+
+volumes:
+  hermes-data:
