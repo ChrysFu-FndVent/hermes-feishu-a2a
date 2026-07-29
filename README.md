@@ -22,6 +22,19 @@ workflow definition, and every Agent must expose either an HTTP adapter or a Fei
 adapter that returns results to Hermes. Feishu file intake is a deterministic exception:
 when configured, authorized file messages are routed to one registered intake Agent.
 
+## Table of contents
+
+- [Supported platforms](#supported-platforms)
+- [Architecture](#architecture)
+- [Quick start](#quick-start)
+- [Docker](#docker)
+- [Agent contract](#agent-contract)
+- [Run a workflow](#run-a-workflow)
+- [Feishu setup](#feishu-setup)
+- [API reference](#api-reference)
+- [Production deployment](#production-deployment)
+- [Development](#development)
+
 ## Supported platforms
 
 | Platform | Native installation | Container installation | Continuous validation |
