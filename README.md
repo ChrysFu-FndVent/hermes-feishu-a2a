@@ -2,7 +2,7 @@
 
 <a id="简体中文"></a>
 
-# Hermes 飞书 A2A
+# Hermes-飞书-A2A
 
 <p align="center">
   <img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=600&size=22&duration=2800&pause=900&color=22C55E&center=true&vCenter=true&repeat=true&width=720&lines=%E6%9C%89%E8%BE%B9%E7%95%8C%E7%9A%84%E5%B7%A5%E4%BD%9C%E6%B5%81%E8%BE%93%E5%85%A5%EF%BC%8C%E5%8F%AF%E8%BF%BD%E6%BA%AF%E7%9A%84%E7%BB%93%E6%9E%9C%E8%BE%93%E5%87%BA%E3%80%82;%E8%AE%A1%E5%88%92+%E2%86%92+%E5%88%86%E6%B4%BE+%E2%86%92+%E9%AA%8C%E8%AF%81+%E2%86%92+%E4%BA%A4%E4%BB%98%E3%80%82;%E5%9C%A8%E9%A3%9E%E4%B9%A6%2FLark+%E5%86%85%E5%AE%89%E5%85%A8%E5%8D%8F%E8%B0%83+Agent%E3%80%82" alt="动态项目摘要：有边界的工作流、可追溯的结果和安全的 Agent 协调" />
