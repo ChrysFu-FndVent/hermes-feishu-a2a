@@ -1,3 +1,15 @@
+<!-- README-ARCHITECT: visual-shell -->
+<p align="center">
+  <img src="assets/readme/hermes-feishu-a2a-banner.svg" alt="hermes-feishu-a2a project banner" width="100%" />
+</p>
+<p align="center">
+  <a href="https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/ChrysFu-FndVent/hermes-feishu-a2a?style=for-the-badge&amp;logo=github" /></a>
+  <a href="https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/ChrysFu-FndVent/hermes-feishu-a2a?style=for-the-badge" /></a>
+  <a href="https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/search?l=Python"><img alt="Top language" src="https://img.shields.io/github/languages/top/ChrysFu-FndVent/hermes-feishu-a2a?style=for-the-badge" /></a>
+  <a href="https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/ChrysFu-FndVent/hermes-feishu-a2a?style=for-the-badge" /></a>
+</p>
+<!-- README-ARCHITECT: visual-shell end -->
+
 <div align="right"><a href="#简体中文">简体中文</a> | <a href="#english">English</a></div>
 
 <a id="简体中文"></a>
