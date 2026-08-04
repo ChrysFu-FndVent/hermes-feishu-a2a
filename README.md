@@ -11,364 +11,7 @@
 </p>
 <!-- README-ARCHITECT: visual-shell end -->
 
-<div align="right"><a href="#简体中文">简体中文</a> | <a href="#english">English</a></div>
-
-<a id="简体中文"></a>
-
-# Hermes 飞书 A2A
-
-<p align="center">
-  <img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=600&size=22&duration=2800&pause=900&color=22C55E&center=true&vCenter=true&repeat=true&width=720&lines=%E6%9C%89%E8%BE%B9%E7%95%8C%E7%9A%84%E5%B7%A5%E4%BD%9C%E6%B5%81%E8%BE%93%E5%85%A5%EF%BC%8C%E5%8F%AF%E8%BF%BD%E6%BA%AF%E7%9A%84%E7%BB%93%E6%9E%9C%E8%BE%93%E5%87%BA%E3%80%82;%E8%AE%A1%E5%88%92+%E2%86%92+%E5%88%86%E6%B4%BE+%E2%86%92+%E9%AA%8C%E8%AF%81+%E2%86%92+%E4%BA%A4%E4%BB%98%E3%80%82;%E5%9C%A8%E9%A3%9E%E4%B9%A6%2FLark+%E5%86%85%E5%AE%89%E5%85%A8%E5%8D%8F%E8%B0%83+Agent%E3%80%82" alt="动态项目摘要：有边界的工作流、可追溯的结果和安全的 Agent 协调" />
-</p>
-
-一个自托管的工作流协调器，通过 HTTP 或飞书/Lark 将边界明确的任务分派给已注册的 Agent。
-
-[![CI](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/actions/workflows/ci.yml)
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](Dockerfile)
-[![Release](https://img.shields.io/github/v/release/ChrysFu-FndVent/hermes-feishu-a2a)](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-F4C430.svg)](LICENSE)
-
-Hermes 存储 Agent 身份与工作流状态、执行依赖屏障、分派就绪任务、应用超时与重试，并通过经过身份验证的 API 提供运行结果。飞书 webhook 事件会根据已配置的签名、会话白名单和发送者白名单进行验证。
-
-Hermes 不包含 LLM 规划器或 Agent 运行时。调用方必须提交工作流定义，而每个 Agent 都必须提供 HTTP 适配器或飞书适配器，将结果返回 Hermes。飞书文件接收是一个确定性的例外：配置后，获得授权的文件消息会被路由到一个已注册的接收 Agent。
-
-## 目录
-
-- [零凭据演示](#zh-zero-credential-demo)
-- [支持的平台](#支持的平台)
-- [架构](#架构)
-- [生产配置快速开始](#zh-quick-start)
-- [Docker](#docker-1)
-- [Agent 契约](#agent-契约)
-- [运行工作流](#运行工作流)
-- [飞书配置](#飞书配置)
-- [API 参考](#api-参考)
-- [生产部署](#生产部署)
-- [开发](#开发)
-
-<a id="zh-zero-credential-demo"></a>
-
-## 零凭据演示
-
-首次体验不需要飞书租户、应用凭据、模型 API 或真实业务数据。演示会在本机启动临时 Hermes 环境和两个 loopback HTTP Agent，运行 `researcher -> reviewer` 工作流，打印每个任务的状态与合成结果，然后清理临时状态。
-
-macOS 或 Linux：
-
-```bash
-git clone https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git
-cd hermes-feishu-a2a
-python3 -m venv .venv
-.venv/bin/python -m pip install .
-.venv/bin/hermes-a2a demo
-```
-
-Windows PowerShell：
-
-```powershell
-git clone https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git
-Set-Location hermes-feishu-a2a
-py -3.11 -m venv .venv
-.venv\Scripts\python.exe -m pip install .
-.venv\Scripts\hermes-a2a.exe demo
-```
-
-完整容器链路：
-
-```bash
-docker compose -f docker-compose.demo.yml up --build --abort-on-container-exit --exit-code-from demo-runner
-docker compose -f docker-compose.demo.yml down --volumes
-```
-
-Compose 会启动 Hermes、两个独立的 mock Agent 和一次性演示运行器。Hermes 仅绑定主机 loopback，运行阶段只访问隔离的 Compose 内部网络；首次构建镜像仍需要下载 Python 依赖。演示令牌是公开、固定且仅用于隔离演示的值，不能用于生产。
-
-## 支持的平台
-
-| 平台 | 原生安装 | 容器安装 | 持续验证 |
-| --- | --- | --- | --- |
-| macOS | Python 3.11 或更高版本 | Docker Desktop | `macos-latest` |
-| Windows | Python 3.11 或更高版本 | 使用 Linux 容器的 Docker Desktop | `windows-latest` |
-| Linux | Python 3.11 或更高版本 | Docker Engine 与 Compose v2 | `ubuntu-latest` |
-
-Python wheel 与平台无关。发布的容器支持 `linux/amd64` 和 `linux/arm64`。
-
-## 架构
-
-![Hermes 飞书 A2A 架构](docs/assets/readme-architecture.svg)
-
-<a id="zh-quick-start"></a>
-
-## 生产配置快速开始
-
-### 1. 安装
-
-前置条件：Git 和 Python 3.11 或更高版本。
-
-macOS 或 Linux：
-
-```bash
-git clone https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git
-cd hermes-feishu-a2a
-python3 -m venv .venv
-.venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install .
-```
-
-Windows PowerShell：
-
-```powershell
-git clone https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git
-Set-Location hermes-feishu-a2a
-py -3.11 -m venv .venv
-.venv\Scripts\python.exe -m pip install --upgrade pip
-.venv\Scripts\python.exe -m pip install .
-```
-
-这些命令不要求激活 shell，因此在 PowerShell 脚本执行受限时也能使用。
-
-### 2. 配置
-
-macOS 或 Linux：
-
-```bash
-cp .env.example .env
-cp config/agents.example.yaml config/agents.yaml
-```
-
-Windows PowerShell：
-
-```powershell
-Copy-Item .env.example .env
-Copy-Item config\agents.example.yaml config\agents.yaml
-```
-
-编辑两个文件并替换所有占位符。生产环境必需的设置包括：
-
-| 变量 | 用途 |
-| --- | --- |
-| `HERMES_INTERNAL_API_TOKEN` | 保护 API 的至少 32 字符随机值 |
-| `HERMES_FEISHU_APP_ID` | 飞书/Lark 自建应用 ID |
-| `HERMES_FEISHU_APP_SECRET` | 自建应用密钥 |
-| `HERMES_FEISHU_ENCRYPT_KEY` | 用于签名的事件订阅加密密钥 |
-| `HERMES_FEISHU_VERIFICATION_TOKEN` | 事件订阅验证令牌 |
-| `HERMES_FEISHU_ALLOWED_CHAT_IDS` | 以逗号分隔的 `oc_...` 会话 ID |
-| `HERMES_FEISHU_OWNER_OPEN_IDS` | 以逗号分隔的 `ou_...` 人类所有者 ID |
-| `HERMES_FEISHU_FILE_INTAKE_AGENT_ID` | 处理获授权飞书文件消息的已注册 Agent |
-| `HERMES_AGENTS_CONFIG_PATH` | Agent 注册表文件，通常为 `config/agents.yaml` |
-
-`HERMES_PORT` 控制原生 Python 启动端口。`HERMES_PUBLISHED_PORT` 控制 Docker Compose 使用的主机端口；容器始终监听 8080 端口。
-
-在本地生成内部 API 令牌：
-
-```bash
-python3 -c "import secrets; print(secrets.token_urlsafe(48))"
-```
-
-在 Windows 上使用 `py -3.11` 代替 `python3`。
-
-每个 HTTP Agent 都需要 `endpoint`。每个飞书 Agent 都需要 `open_id` 和 `metadata.chat_id`。无效的 Agent 记录会使验证和启动停止，而不是在第一次分派时才失败。
-
-验证完整配置：
-
-macOS 或 Linux：
-
-```bash
-.venv/bin/hermes-a2a validate-config --path config/agents.yaml
-```
-
-Windows PowerShell：
-
-```powershell
-.venv\Scripts\hermes-a2a.exe validate-config --path config\agents.yaml
-```
-
-### 3. 运行
-
-macOS 或 Linux：
-
-```bash
-.venv/bin/hermes-a2a serve
-```
-
-Windows PowerShell：
-
-```powershell
-.venv\Scripts\hermes-a2a.exe serve
-```
-
-启动后打开以下 URL：
-
-- `http://127.0.0.1:8080/healthz`：进程健康状态。
-- `http://127.0.0.1:8080/readyz`：生产配置就绪状态。
-- `http://127.0.0.1:8080/docs`：交互式 API。
-
-在生产模式下，只有当所有必需的飞书配置和白名单都是真实且非占位值时，`/readyz` 才不会返回 HTTP 503。
-
-## Docker
-
-Docker 使用上面创建的相同 `.env` 和 `config/agents.yaml` 文件。
-
-```bash
-docker compose up --build -d
-docker compose ps
-docker compose logs -f hermes
-```
-
-Compose 文件使用命名卷存储 SQLite 数据。这可以避免 Linux 上的主机目录所有权问题，也适用于 macOS 和 Windows 上的 Docker Desktop。
-
-停止服务但不删除数据：
-
-```bash
-docker compose down
-```
-
-只有在明确要删除所有 Agent、工作流和运行记录时，才删除命名数据卷：
-
-```bash
-docker compose down --volumes
-```
-
-## Agent 契约
-
-Agent 从 `config/agents.yaml` 预加载，初始状态为 `offline`。适配器必须先发送心跳，Hermes 才会向其分派工作。
-
-```json
-{
-  "status": "online",
-  "capabilities": ["review", "testing"]
-}
-```
-
-携带 `X-Hermes-Token` 请求头，将此负载发送到 `POST /agents/{agent_id}/heartbeat`。
-
-### HTTP Agent
-
-Hermes 向已配置的端点发送 HTTP `POST` 请求：
-
-```json
-{
-  "run_id": "run-123",
-  "task": {
-    "id": "review",
-    "title": "Review",
-    "prompt": "Check the result",
-    "agent_id": "reviewer"
-  },
-  "attachments": []
-}
-```
-
-当任务包含飞书附件引用时，Hermes 会在分派时下载并解析附件。顶层 `attachments` 数组随后包含 `name`、`media_type`、`text` 和原始安全引用。文件字节和飞书凭据绝不会发送给 Agent。
-
-端点必须返回包含 `output` 或 `message` 的 JSON。
-
-```json
-{"output": "Review completed"}
-```
-
-### 飞书 Agent
-
-Hermes 向已配置的 `open_id` 发送原生 `at` 帖子，并等待 Agent 在该任务消息线程中回复，或调用 `POST /events/agent-result`。线程回复会与任务消息和已注册 Agent 的 `open_id` 匹配。API 回调必须包含相同的 `run_id`、`task_id` 和已分配的 `agent_id`。
-
-对于带附件的任务，原生帖子会在任务提示后附上有边界的提取文本。较大内容会在 `HERMES_FEISHU_FILE_MAX_AGENT_CHARS` 处截断。
-
-```json
-{
-  "run_id": "run-123",
-  "task_id": "review",
-  "agent_id": "reviewer",
-  "success": true,
-  "output": "Review completed"
-}
-```
-
-如果在任务超时前既未收到匹配的线程回复，也未收到回调，Hermes 会使用已配置的重试预算，并最终将任务标记为失败。
-
-## 运行工作流
-
-1. 使用 `GET /agents` 确认目标 Agent 为 `online`。
-2. 将 JSON 工作流定义提交到 `POST /workflows`。
-3. 使用 `POST /workflows/{workflow_id}/run` 启动工作流。
-4. 轮询 `GET /runs/{run_id}`，直到运行状态为 `succeeded` 或 `failed`。
-
-四个端点都需要 `X-Hermes-Token`。`/docs` 的交互式 API 是在 macOS、Windows 和 Linux 上执行首次运行最便携的方式。[`examples/`](examples/) 中提供了工作流定义示例。
-
-![任务生命周期](docs/assets/task-lifecycle.svg)
-
-## 飞书配置
-
-1. 创建飞书/Lark 自建应用并启用机器人功能。
-2. 授予租户所需的消息接收/发送和会话读取权限。
-3. 对直接附加到消息的文件授予 `im:resource`。
-4. 对共享的 `/file/...` 云空间链接授予应用身份权限 `drive:file:download`。更宽泛的 `drive:drive:readonly` 权限也可用，但并非必需。
-5. 订阅 `im.message.receive_v1`。
-6. 将 HTTPS 回调设置为 `https://your-host.example/webhooks/feishu`。
-7. 将应用 ID、应用密钥、加密密钥和验证令牌复制到 `.env`。
-8. 将明确的会话 ID 和所有者 open ID 加入白名单。
-9. 发布应用版本、取得租户审批，并将机器人加入目标会话。
-
-Webhook 在解析 JSON 前对原始请求体进行身份验证，然后检查验证令牌、会话 ID 和发送者身份。已接受的消息是集成事件；本服务不会自动把自然语言转换成工作流。如需这种行为，请使用外部规划器或适配器调用工作流 API。
-
-### 文件接收
-
-将 `HERMES_FEISHU_FILE_INTAKE_AGENT_ID` 设置为 `config/agents.yaml` 中的 HTTP 或飞书 Agent，为其授予 `attachment:read`，并确保它发送 `online` 心跳。当白名单内的人类发布受支持的附件或 `/file/...` 链接时，Hermes 会：
-
-1. 提取消息资源 key 或 Drive 文件 token；
-2. 使用应用的 tenant token 下载文件；
-3. 执行已配置的文件数量、压缩/解压字节数、类型和文本限制；
-4. 从 PDF、DOCX、TXT、Markdown、CSV 或 JSON 中提取文本；
-5. 在接收 Agent 上启动一个工作流；
-6. 在原飞书消息中回复 Agent 结果。
-
-事件会按事件/消息 ID 认领，因此飞书重试不会创建重复运行。已注册 Agent 或其他应用发送的消息绝不会触发文件接收，从而防止机器人回复循环。纯图片或扫描 PDF 需要外部 OCR 适配器；Hermes 会拒绝不含可提取文本的 PDF。
-
-详细权限与回调清单见[飞书权限和事件配置](docs/feishu-permissions.md)。
-
-![安全模型](docs/assets/security-model.svg)
-
-## API 参考
-
-| 端点 | 身份验证 | 用途 |
-| --- | --- | --- |
-| `GET /healthz` | 网络限制 | 进程健康状态 |
-| `GET /readyz` | 网络限制 | 生产配置就绪状态 |
-| `GET /metrics` | 网络限制 | Agent 和工作流计数器 |
-| `GET/POST /agents` | `X-Hermes-Token` | 列出或注册 Agent |
-| `POST /agents/{id}/heartbeat` | `X-Hermes-Token` | 更新 Agent 健康状态 |
-| `POST /workflows` | `X-Hermes-Token` | 存储工作流定义 |
-| `POST /workflows/{id}/run` | `X-Hermes-Token` | 启动执行 |
-| `GET /runs/{run_id}` | `X-Hermes-Token` | 检查任务状态和结果 |
-| `POST /events/agent-result` | `X-Hermes-Token` | 完成异步 Agent 任务 |
-| `POST /webhooks/feishu` | 飞书签名和令牌 | 接收飞书事件 |
-
-## 生产部署
-
-- 在反向代理或托管负载均衡器终止 TLS。
-- 只公开 `/webhooks/feishu`。
-- 除使用内部令牌外，还要将内部 API 保持在私有网络中。
-- 固定发布标签或容器摘要，不要直接部署 `main`。
-- 升级前备份 SQLite 数据卷。
-
-发布资产包括与平台无关的 wheel 和源代码归档。发布的容器标签支持 `linux/amd64` 和 `linux/arm64`：
-
-```bash
-docker pull ghcr.io/chrysfu-fndvent/hermes-feishu-a2a:latest
-```
-
-运行细节见[部署](docs/deployment.md)、[最佳实践](docs/best-practices.md)和[故障排除](docs/troubleshooting.md)。
-
-## 开发
-
-```bash
-python -m pip install -e '.[dev]'
-ruff check .
-mypy src
-pytest -q
-python scripts/check_secrets.py
-python -m build
-```
-
-参见 [CONTRIBUTING.md](CONTRIBUTING.md)。本项目以 [MIT License](LICENSE) 发布。
+<div align="right"><a href="#english">English</a> | <a href="#简体中文">简体中文</a></div>
 
 <a id="english"></a>
 
@@ -774,3 +417,360 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). This project is released under the
 <p align="right"><a href="#english">Back to English</a></p>
 
 ---
+
+<a id="简体中文"></a>
+
+# Hermes 飞书 A2A
+
+<p align="center">
+  <img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=600&size=22&duration=2800&pause=900&color=22C55E&center=true&vCenter=true&repeat=true&width=720&lines=%E6%9C%89%E8%BE%B9%E7%95%8C%E7%9A%84%E5%B7%A5%E4%BD%9C%E6%B5%81%E8%BE%93%E5%85%A5%EF%BC%8C%E5%8F%AF%E8%BF%BD%E6%BA%AF%E7%9A%84%E7%BB%93%E6%9E%9C%E8%BE%93%E5%87%BA%E3%80%82;%E8%AE%A1%E5%88%92+%E2%86%92+%E5%88%86%E6%B4%BE+%E2%86%92+%E9%AA%8C%E8%AF%81+%E2%86%92+%E4%BA%A4%E4%BB%98%E3%80%82;%E5%9C%A8%E9%A3%9E%E4%B9%A6%2FLark+%E5%86%85%E5%AE%89%E5%85%A8%E5%8D%8F%E8%B0%83+Agent%E3%80%82" alt="动态项目摘要：有边界的工作流、可追溯的结果和安全的 Agent 协调" />
+</p>
+
+一个自托管的工作流协调器，通过 HTTP 或飞书/Lark 将边界明确的任务分派给已注册的 Agent。
+
+[![CI](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/actions/workflows/ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](Dockerfile)
+[![Release](https://img.shields.io/github/v/release/ChrysFu-FndVent/hermes-feishu-a2a)](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-F4C430.svg)](LICENSE)
+
+Hermes 存储 Agent 身份与工作流状态、执行依赖屏障、分派就绪任务、应用超时与重试，并通过经过身份验证的 API 提供运行结果。飞书 webhook 事件会根据已配置的签名、会话白名单和发送者白名单进行验证。
+
+Hermes 不包含 LLM 规划器或 Agent 运行时。调用方必须提交工作流定义，而每个 Agent 都必须提供 HTTP 适配器或飞书适配器，将结果返回 Hermes。飞书文件接收是一个确定性的例外：配置后，获得授权的文件消息会被路由到一个已注册的接收 Agent。
+
+## 目录
+
+- [零凭据演示](#zh-zero-credential-demo)
+- [支持的平台](#支持的平台)
+- [架构](#架构)
+- [生产配置快速开始](#zh-quick-start)
+- [Docker](#docker-1)
+- [Agent 契约](#agent-契约)
+- [运行工作流](#运行工作流)
+- [飞书配置](#飞书配置)
+- [API 参考](#api-参考)
+- [生产部署](#生产部署)
+- [开发](#开发)
+
+<a id="zh-zero-credential-demo"></a>
+
+## 零凭据演示
+
+首次体验不需要飞书租户、应用凭据、模型 API 或真实业务数据。演示会在本机启动临时 Hermes 环境和两个 loopback HTTP Agent，运行 `researcher -> reviewer` 工作流，打印每个任务的状态与合成结果，然后清理临时状态。
+
+macOS 或 Linux：
+
+```bash
+git clone https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git
+cd hermes-feishu-a2a
+python3 -m venv .venv
+.venv/bin/python -m pip install .
+.venv/bin/hermes-a2a demo
+```
+
+Windows PowerShell：
+
+```powershell
+git clone https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git
+Set-Location hermes-feishu-a2a
+py -3.11 -m venv .venv
+.venv\Scripts\python.exe -m pip install .
+.venv\Scripts\hermes-a2a.exe demo
+```
+
+完整容器链路：
+
+```bash
+docker compose -f docker-compose.demo.yml up --build --abort-on-container-exit --exit-code-from demo-runner
+docker compose -f docker-compose.demo.yml down --volumes
+```
+
+Compose 会启动 Hermes、两个独立的 mock Agent 和一次性演示运行器。Hermes 仅绑定主机 loopback，运行阶段只访问隔离的 Compose 内部网络；首次构建镜像仍需要下载 Python 依赖。演示令牌是公开、固定且仅用于隔离演示的值，不能用于生产。
+
+## 支持的平台
+
+| 平台 | 原生安装 | 容器安装 | 持续验证 |
+| --- | --- | --- | --- |
+| macOS | Python 3.11 或更高版本 | Docker Desktop | `macos-latest` |
+| Windows | Python 3.11 或更高版本 | 使用 Linux 容器的 Docker Desktop | `windows-latest` |
+| Linux | Python 3.11 或更高版本 | Docker Engine 与 Compose v2 | `ubuntu-latest` |
+
+Python wheel 与平台无关。发布的容器支持 `linux/amd64` 和 `linux/arm64`。
+
+## 架构
+
+![Hermes 飞书 A2A 架构](docs/assets/readme-architecture.svg)
+
+<a id="zh-quick-start"></a>
+
+## 生产配置快速开始
+
+### 1. 安装
+
+前置条件：Git 和 Python 3.11 或更高版本。
+
+macOS 或 Linux：
+
+```bash
+git clone https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git
+cd hermes-feishu-a2a
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install .
+```
+
+Windows PowerShell：
+
+```powershell
+git clone https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git
+Set-Location hermes-feishu-a2a
+py -3.11 -m venv .venv
+.venv\Scripts\python.exe -m pip install --upgrade pip
+.venv\Scripts\python.exe -m pip install .
+```
+
+这些命令不要求激活 shell，因此在 PowerShell 脚本执行受限时也能使用。
+
+### 2. 配置
+
+macOS 或 Linux：
+
+```bash
+cp .env.example .env
+cp config/agents.example.yaml config/agents.yaml
+```
+
+Windows PowerShell：
+
+```powershell
+Copy-Item .env.example .env
+Copy-Item config\agents.example.yaml config\agents.yaml
+```
+
+编辑两个文件并替换所有占位符。生产环境必需的设置包括：
+
+| 变量 | 用途 |
+| --- | --- |
+| `HERMES_INTERNAL_API_TOKEN` | 保护 API 的至少 32 字符随机值 |
+| `HERMES_FEISHU_APP_ID` | 飞书/Lark 自建应用 ID |
+| `HERMES_FEISHU_APP_SECRET` | 自建应用密钥 |
+| `HERMES_FEISHU_ENCRYPT_KEY` | 用于签名的事件订阅加密密钥 |
+| `HERMES_FEISHU_VERIFICATION_TOKEN` | 事件订阅验证令牌 |
+| `HERMES_FEISHU_ALLOWED_CHAT_IDS` | 以逗号分隔的 `oc_...` 会话 ID |
+| `HERMES_FEISHU_OWNER_OPEN_IDS` | 以逗号分隔的 `ou_...` 人类所有者 ID |
+| `HERMES_FEISHU_FILE_INTAKE_AGENT_ID` | 处理获授权飞书文件消息的已注册 Agent |
+| `HERMES_AGENTS_CONFIG_PATH` | Agent 注册表文件，通常为 `config/agents.yaml` |
+
+`HERMES_PORT` 控制原生 Python 启动端口。`HERMES_PUBLISHED_PORT` 控制 Docker Compose 使用的主机端口；容器始终监听 8080 端口。
+
+在本地生成内部 API 令牌：
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+在 Windows 上使用 `py -3.11` 代替 `python3`。
+
+每个 HTTP Agent 都需要 `endpoint`。每个飞书 Agent 都需要 `open_id` 和 `metadata.chat_id`。无效的 Agent 记录会使验证和启动停止，而不是在第一次分派时才失败。
+
+验证完整配置：
+
+macOS 或 Linux：
+
+```bash
+.venv/bin/hermes-a2a validate-config --path config/agents.yaml
+```
+
+Windows PowerShell：
+
+```powershell
+.venv\Scripts\hermes-a2a.exe validate-config --path config\agents.yaml
+```
+
+### 3. 运行
+
+macOS 或 Linux：
+
+```bash
+.venv/bin/hermes-a2a serve
+```
+
+Windows PowerShell：
+
+```powershell
+.venv\Scripts\hermes-a2a.exe serve
+```
+
+启动后打开以下 URL：
+
+- `http://127.0.0.1:8080/healthz`：进程健康状态。
+- `http://127.0.0.1:8080/readyz`：生产配置就绪状态。
+- `http://127.0.0.1:8080/docs`：交互式 API。
+
+在生产模式下，只有当所有必需的飞书配置和白名单都是真实且非占位值时，`/readyz` 才不会返回 HTTP 503。
+
+## Docker
+
+Docker 使用上面创建的相同 `.env` 和 `config/agents.yaml` 文件。
+
+```bash
+docker compose up --build -d
+docker compose ps
+docker compose logs -f hermes
+```
+
+Compose 文件使用命名卷存储 SQLite 数据。这可以避免 Linux 上的主机目录所有权问题，也适用于 macOS 和 Windows 上的 Docker Desktop。
+
+停止服务但不删除数据：
+
+```bash
+docker compose down
+```
+
+只有在明确要删除所有 Agent、工作流和运行记录时，才删除命名数据卷：
+
+```bash
+docker compose down --volumes
+```
+
+## Agent 契约
+
+Agent 从 `config/agents.yaml` 预加载，初始状态为 `offline`。适配器必须先发送心跳，Hermes 才会向其分派工作。
+
+```json
+{
+  "status": "online",
+  "capabilities": ["review", "testing"]
+}
+```
+
+携带 `X-Hermes-Token` 请求头，将此负载发送到 `POST /agents/{agent_id}/heartbeat`。
+
+### HTTP Agent
+
+Hermes 向已配置的端点发送 HTTP `POST` 请求：
+
+```json
+{
+  "run_id": "run-123",
+  "task": {
+    "id": "review",
+    "title": "Review",
+    "prompt": "Check the result",
+    "agent_id": "reviewer"
+  },
+  "attachments": []
+}
+```
+
+当任务包含飞书附件引用时，Hermes 会在分派时下载并解析附件。顶层 `attachments` 数组随后包含 `name`、`media_type`、`text` 和原始安全引用。文件字节和飞书凭据绝不会发送给 Agent。
+
+端点必须返回包含 `output` 或 `message` 的 JSON。
+
+```json
+{"output": "Review completed"}
+```
+
+### 飞书 Agent
+
+Hermes 向已配置的 `open_id` 发送原生 `at` 帖子，并等待 Agent 在该任务消息线程中回复，或调用 `POST /events/agent-result`。线程回复会与任务消息和已注册 Agent 的 `open_id` 匹配。API 回调必须包含相同的 `run_id`、`task_id` 和已分配的 `agent_id`。
+
+对于带附件的任务，原生帖子会在任务提示后附上有边界的提取文本。较大内容会在 `HERMES_FEISHU_FILE_MAX_AGENT_CHARS` 处截断。
+
+```json
+{
+  "run_id": "run-123",
+  "task_id": "review",
+  "agent_id": "reviewer",
+  "success": true,
+  "output": "Review completed"
+}
+```
+
+如果在任务超时前既未收到匹配的线程回复，也未收到回调，Hermes 会使用已配置的重试预算，并最终将任务标记为失败。
+
+## 运行工作流
+
+1. 使用 `GET /agents` 确认目标 Agent 为 `online`。
+2. 将 JSON 工作流定义提交到 `POST /workflows`。
+3. 使用 `POST /workflows/{workflow_id}/run` 启动工作流。
+4. 轮询 `GET /runs/{run_id}`，直到运行状态为 `succeeded` 或 `failed`。
+
+四个端点都需要 `X-Hermes-Token`。`/docs` 的交互式 API 是在 macOS、Windows 和 Linux 上执行首次运行最便携的方式。[`examples/`](examples/) 中提供了工作流定义示例。
+
+![任务生命周期](docs/assets/task-lifecycle.svg)
+
+## 飞书配置
+
+1. 创建飞书/Lark 自建应用并启用机器人功能。
+2. 授予租户所需的消息接收/发送和会话读取权限。
+3. 对直接附加到消息的文件授予 `im:resource`。
+4. 对共享的 `/file/...` 云空间链接授予应用身份权限 `drive:file:download`。更宽泛的 `drive:drive:readonly` 权限也可用，但并非必需。
+5. 订阅 `im.message.receive_v1`。
+6. 将 HTTPS 回调设置为 `https://your-host.example/webhooks/feishu`。
+7. 将应用 ID、应用密钥、加密密钥和验证令牌复制到 `.env`。
+8. 将明确的会话 ID 和所有者 open ID 加入白名单。
+9. 发布应用版本、取得租户审批，并将机器人加入目标会话。
+
+Webhook 在解析 JSON 前对原始请求体进行身份验证，然后检查验证令牌、会话 ID 和发送者身份。已接受的消息是集成事件；本服务不会自动把自然语言转换成工作流。如需这种行为，请使用外部规划器或适配器调用工作流 API。
+
+### 文件接收
+
+将 `HERMES_FEISHU_FILE_INTAKE_AGENT_ID` 设置为 `config/agents.yaml` 中的 HTTP 或飞书 Agent，为其授予 `attachment:read`，并确保它发送 `online` 心跳。当白名单内的人类发布受支持的附件或 `/file/...` 链接时，Hermes 会：
+
+1. 提取消息资源 key 或 Drive 文件 token；
+2. 使用应用的 tenant token 下载文件；
+3. 执行已配置的文件数量、压缩/解压字节数、类型和文本限制；
+4. 从 PDF、DOCX、TXT、Markdown、CSV 或 JSON 中提取文本；
+5. 在接收 Agent 上启动一个工作流；
+6. 在原飞书消息中回复 Agent 结果。
+
+事件会按事件/消息 ID 认领，因此飞书重试不会创建重复运行。已注册 Agent 或其他应用发送的消息绝不会触发文件接收，从而防止机器人回复循环。纯图片或扫描 PDF 需要外部 OCR 适配器；Hermes 会拒绝不含可提取文本的 PDF。
+
+详细权限与回调清单见[飞书权限和事件配置](docs/feishu-permissions.md)。
+
+![安全模型](docs/assets/security-model.svg)
+
+## API 参考
+
+| 端点 | 身份验证 | 用途 |
+| --- | --- | --- |
+| `GET /healthz` | 网络限制 | 进程健康状态 |
+| `GET /readyz` | 网络限制 | 生产配置就绪状态 |
+| `GET /metrics` | 网络限制 | Agent 和工作流计数器 |
+| `GET/POST /agents` | `X-Hermes-Token` | 列出或注册 Agent |
+| `POST /agents/{id}/heartbeat` | `X-Hermes-Token` | 更新 Agent 健康状态 |
+| `POST /workflows` | `X-Hermes-Token` | 存储工作流定义 |
+| `POST /workflows/{id}/run` | `X-Hermes-Token` | 启动执行 |
+| `GET /runs/{run_id}` | `X-Hermes-Token` | 检查任务状态和结果 |
+| `POST /events/agent-result` | `X-Hermes-Token` | 完成异步 Agent 任务 |
+| `POST /webhooks/feishu` | 飞书签名和令牌 | 接收飞书事件 |
+
+## 生产部署
+
+- 在反向代理或托管负载均衡器终止 TLS。
+- 只公开 `/webhooks/feishu`。
+- 除使用内部令牌外，还要将内部 API 保持在私有网络中。
+- 固定发布标签或容器摘要，不要直接部署 `main`。
+- 升级前备份 SQLite 数据卷。
+
+发布资产包括与平台无关的 wheel 和源代码归档。发布的容器标签支持 `linux/amd64` 和 `linux/arm64`：
+
+```bash
+docker pull ghcr.io/chrysfu-fndvent/hermes-feishu-a2a:latest
+```
+
+运行细节见[部署](docs/deployment.md)、[最佳实践](docs/best-practices.md)和[故障排除](docs/troubleshooting.md)。
+
+## 开发
+
+```bash
+python -m pip install -e '.[dev]'
+ruff check .
+mypy src
+pytest -q
+python scripts/check_secrets.py
+python -m build
+```
+
+参见 [CONTRIBUTING.md](CONTRIBUTING.md)。本项目以 [MIT License](LICENSE) 发布。
