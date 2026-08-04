@@ -1,0 +1,61 @@
+name: hermes-a2a-demo
+
+services:
+  hermes:
+    build: .
+    environment:
+      HERMES_ENV: development
+      HERMES_HOST: 0.0.0.0
+      HERMES_PORT: 8080
+      HERMES_DATABASE_URL: sqlite:///./data/demo.db
+      HERMES_INTERNAL_API_TOKEN: local-demo-token-only-32-characters
+      HERMES_AGENTS_CONFIG_PATH: config/agents.demo.yaml
+      HERMES_FEISHU_WEBHOOK_SIGNATURE_REQUIRED: "false"
+    ports:
+      - "127.0.0.1:${HERMES_DEMO_PORT:-8080}:8080"
+    networks: [demo]
+    volumes:
+      - ./config/agents.demo.yaml:/app/config/agents.demo.yaml:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/readyz')"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  researcher:
+    build: .
+    command: ["python", "-m", "hermes_a2a.demo_agent", "--agent-id", "researcher", "--port", "9001"]
+    networks: [demo]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9001/healthz')"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  reviewer:
+    build: .
+    command: ["python", "-m", "hermes_a2a.demo_agent", "--agent-id", "reviewer", "--port", "9002"]
+    networks: [demo]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9002/healthz')"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  demo-runner:
+    build: .
+    command: ["hermes-a2a", "demo", "--base-url", "http://hermes:8080"]
+    networks: [demo]
+    environment:
+      HERMES_DEMO_TOKEN: local-demo-token-only-32-characters
+    depends_on:
+      hermes:
+        condition: service_healthy
+      researcher:
+        condition: service_healthy
+      reviewer:
+        condition: service_healthy
+
+networks:
+  demo:
+    internal: true

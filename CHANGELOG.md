@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0 - 2026-08-04
+
+- Added a deterministic `hermes-a2a demo` command that runs a real local HTTP Agent workflow with
+  temporary state and no Feishu credentials or external services.
+- Added a Docker Compose demonstration with bundled researcher and reviewer Agents.
+- Added macOS, Windows and Linux CLI demo coverage plus a Linux Compose smoke test.
+
 ## 0.2.0 - 2026-07-20
 
 - Added bounded Feishu message-resource and Drive file downloads.
