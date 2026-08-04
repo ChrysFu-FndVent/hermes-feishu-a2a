@@ -1,0 +1,16 @@
+agents:
+  - id: researcher
+    display_name: Demo Research Agent
+    role: synthetic evidence collection
+    capabilities: [research]
+    transport: http
+    endpoint: http://researcher:9001/execute
+    permissions: [task:execute, result:write]
+
+  - id: reviewer
+    display_name: Demo Review Agent
+    role: synthetic acceptance review
+    capabilities: [review]
+    transport: http
+    endpoint: http://reviewer:9002/execute
+    permissions: [task:execute, result:write]

@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hermes-feishu-a2a"
-version = "0.2.0"
-description = "A secure, observable multi-agent coordinator for Feishu group workflows."
+version = "0.3.0"
+description = "Self-hosted multi-agent workflow orchestration for Feishu/Lark with authenticated dispatch, retries, file intake, and traceable runs."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }

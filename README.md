@@ -4,6 +4,7 @@
 </p>
 <p align="center">
   <a href="https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/ChrysFu-FndVent/hermes-feishu-a2a?style=for-the-badge&amp;logo=github" /></a>
+  <a href="https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/ChrysFu-FndVent/hermes-feishu-a2a?style=for-the-badge" /></a>
   <a href="https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/ChrysFu-FndVent/hermes-feishu-a2a?style=for-the-badge" /></a>
   <a href="https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/search?l=Python"><img alt="Top language" src="https://img.shields.io/github/languages/top/ChrysFu-FndVent/hermes-feishu-a2a?style=for-the-badge" /></a>
   <a href="https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/ChrysFu-FndVent/hermes-feishu-a2a?style=for-the-badge" /></a>
@@ -25,6 +26,7 @@
 [![CI](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](Dockerfile)
+[![Release](https://img.shields.io/github/v/release/ChrysFu-FndVent/hermes-feishu-a2a)](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F4C430.svg)](LICENSE)
 
 Hermes 存储 Agent 身份与工作流状态、执行依赖屏障、分派就绪任务、应用超时与重试，并通过经过身份验证的 API 提供运行结果。飞书 webhook 事件会根据已配置的签名、会话白名单和发送者白名单进行验证。
@@ -33,9 +35,10 @@ Hermes 不包含 LLM 规划器或 Agent 运行时。调用方必须提交工作�
 
 ## 目录
 
+- [零凭据演示](#zh-zero-credential-demo)
 - [支持的平台](#支持的平台)
 - [架构](#架构)
-- [快速开始](#zh-quick-start)
+- [生产配置快速开始](#zh-quick-start)
 - [Docker](#docker-1)
 - [Agent 契约](#agent-契约)
 - [运行工作流](#运行工作流)
@@ -43,6 +46,41 @@ Hermes 不包含 LLM 规划器或 Agent 运行时。调用方必须提交工作�
 - [API 参考](#api-参考)
 - [生产部署](#生产部署)
 - [开发](#开发)
+
+<a id="zh-zero-credential-demo"></a>
+
+## 零凭据演示
+
+首次体验不需要飞书租户、应用凭据、模型 API 或真实业务数据。演示会在本机启动临时 Hermes 环境和两个 loopback HTTP Agent，运行 `researcher -> reviewer` 工作流，打印每个任务的状态与合成结果，然后清理临时状态。
+
+macOS 或 Linux：
+
+```bash
+git clone https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git
+cd hermes-feishu-a2a
+python3 -m venv .venv
+.venv/bin/python -m pip install .
+.venv/bin/hermes-a2a demo
+```
+
+Windows PowerShell：
+
+```powershell
+git clone https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git
+Set-Location hermes-feishu-a2a
+py -3.11 -m venv .venv
+.venv\Scripts\python.exe -m pip install .
+.venv\Scripts\hermes-a2a.exe demo
+```
+
+完整容器链路：
+
+```bash
+docker compose -f docker-compose.demo.yml up --build --abort-on-container-exit --exit-code-from demo-runner
+docker compose -f docker-compose.demo.yml down --volumes
+```
+
+Compose 会启动 Hermes、两个独立的 mock Agent 和一次性演示运行器。Hermes 仅绑定主机 loopback，运行阶段只访问隔离的 Compose 内部网络；首次构建镜像仍需要下载 Python 依赖。演示令牌是公开、固定且仅用于隔离演示的值，不能用于生产。
 
 ## 支持的平台
 
@@ -60,7 +98,7 @@ Python wheel 与平台无关。发布的容器支持 `linux/amd64` 和 `linux/ar
 
 <a id="zh-quick-start"></a>
 
-## 快速开始
+## 生产配置快速开始
 
 ### 1. 安装
 
@@ -346,6 +384,7 @@ Agents through HTTP or Feishu/Lark.
 [![CI](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](Dockerfile)
+[![Release](https://img.shields.io/github/v/release/ChrysFu-FndVent/hermes-feishu-a2a)](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F4C430.svg)](LICENSE)
 
 Hermes stores Agent identities and workflow state, enforces dependency barriers,
@@ -360,9 +399,10 @@ when configured, authorized file messages are routed to one registered intake Ag
 
 ## Table of contents
 
+- [Zero-credential demo](#en-zero-credential-demo)
 - [Supported platforms](#supported-platforms)
 - [Architecture](#architecture)
-- [Quick start](#quick-start)
+- [Production quick start](#quick-start)
 - [Docker](#docker)
 - [Agent contract](#agent-contract)
 - [Run a workflow](#run-a-workflow)
@@ -370,6 +410,41 @@ when configured, authorized file messages are routed to one registered intake Ag
 - [API reference](#api-reference)
 - [Production deployment](#production-deployment)
 - [Development](#development)
+
+<a id="en-zero-credential-demo"></a>
+
+## Zero-credential demo
+
+The first run needs no Feishu tenant, app credentials, model API, or real business data. The demo starts a temporary Hermes environment and two loopback HTTP Agents, runs a `researcher -> reviewer` workflow, prints every task state and synthetic result, then removes the temporary state.
+
+macOS or Linux:
+
+```bash
+git clone https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git
+cd hermes-feishu-a2a
+python3 -m venv .venv
+.venv/bin/python -m pip install .
+.venv/bin/hermes-a2a demo
+```
+
+Windows PowerShell:
+
+```powershell
+git clone https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git
+Set-Location hermes-feishu-a2a
+py -3.11 -m venv .venv
+.venv\Scripts\python.exe -m pip install .
+.venv\Scripts\hermes-a2a.exe demo
+```
+
+Full container path:
+
+```bash
+docker compose -f docker-compose.demo.yml up --build --abort-on-container-exit --exit-code-from demo-runner
+docker compose -f docker-compose.demo.yml down --volumes
+```
+
+Compose starts Hermes, two independent mock Agents, and a one-shot demo runner. Hermes binds only to the host loopback interface, and runtime traffic stays inside an isolated Compose network; the first image build still downloads Python dependencies. The fixed demo token is public and restricted to this isolated demonstration. Never use it in production.
 
 ## Supported platforms
 
@@ -386,7 +461,9 @@ The Python wheel is platform-independent. The published container supports
 
 ![Hermes Feishu A2A architecture](docs/assets/readme-architecture.svg)
 
-## Quick start
+<a id="quick-start"></a>
+
+## Production quick start
 
 ### 1. Install
 
