@@ -12,6 +12,8 @@
   Feishu integration as a complete, non-placeholder setup.
 - Extended the zero-credential CLI and Compose demonstrations to prove capability routing and the
   runtime registry lifecycle.
+- Updated canonical GitHub and GHCR coordinates after the repository owner migration and added a
+  safe manual rebuild path for an existing release tag.
 
 ## 0.3.0 - 2026-08-04
 
