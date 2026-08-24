@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     internal_api_token: SecretStr = SecretStr("")
     agents_config_path: Path = Path("config/agents.yaml")
+    agent_endpoint_allowed_hosts: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    agent_endpoint_require_https: bool = False
     max_concurrency: int = Field(default=8, ge=1, le=128)
     default_task_timeout_seconds: float = Field(default=120, gt=0, le=3600)
     webhook_tolerance_seconds: int = Field(default=300, ge=0, le=3600)
@@ -51,6 +53,7 @@ class Settings(BaseSettings):
         "feishu_allowed_chat_ids",
         "feishu_owner_open_ids",
         "feishu_file_allowed_extensions",
+        "agent_endpoint_allowed_hosts",
         mode="before",
     )
     @classmethod
@@ -68,35 +71,58 @@ class Settings(BaseSettings):
     def normalize_extensions(cls, value: list[str]) -> list[str]:
         return [item.lower() if item.startswith(".") else f".{item.lower()}" for item in value]
 
+    @field_validator("agent_endpoint_allowed_hosts")
+    @classmethod
+    def normalize_endpoint_hosts(cls, value: list[str]) -> list[str]:
+        return sorted({item.lower() for item in value})
+
     def validate_for_production(self) -> list[str]:
         errors: list[str] = []
         if not self.has_valid_internal_api_token():
             errors.append(
                 "HERMES_INTERNAL_API_TOKEN must be a random value of at least 32 characters"
             )
-        if self.feishu_webhook_signature_required:
-            encrypt_key = self.feishu_encrypt_key.get_secret_value()
-            if not encrypt_key or _is_placeholder(encrypt_key):
-                errors.append(
-                    "HERMES_FEISHU_ENCRYPT_KEY is required when webhook signatures are enabled"
-                )
-        verification_token = self.feishu_verification_token.get_secret_value()
-        if not verification_token or _is_placeholder(verification_token):
-            errors.append("HERMES_FEISHU_VERIFICATION_TOKEN is required")
-        if not self.feishu_app_id or _is_placeholder(self.feishu_app_id):
-            errors.append("HERMES_FEISHU_APP_ID is required")
-        app_secret = self.feishu_app_secret.get_secret_value()
-        if not app_secret or _is_placeholder(app_secret):
-            errors.append("HERMES_FEISHU_APP_SECRET is required")
-        if not self.feishu_allowed_chat_ids or any(
-            _is_placeholder(value) for value in self.feishu_allowed_chat_ids
-        ):
-            errors.append("HERMES_FEISHU_ALLOWED_CHAT_IDS must contain real chat IDs")
-        if not self.feishu_owner_open_ids or any(
-            _is_placeholder(value) for value in self.feishu_owner_open_ids
-        ):
-            errors.append("HERMES_FEISHU_OWNER_OPEN_IDS must contain real owner open IDs")
+        if self.has_feishu_configuration():
+            if self.feishu_webhook_signature_required:
+                encrypt_key = self.feishu_encrypt_key.get_secret_value()
+                if not encrypt_key or _is_placeholder(encrypt_key):
+                    errors.append(
+                        "HERMES_FEISHU_ENCRYPT_KEY is required when webhook signatures are enabled"
+                    )
+            verification_token = self.feishu_verification_token.get_secret_value()
+            if not verification_token or _is_placeholder(verification_token):
+                errors.append("HERMES_FEISHU_VERIFICATION_TOKEN is required")
+            if not self.feishu_app_id or _is_placeholder(self.feishu_app_id):
+                errors.append("HERMES_FEISHU_APP_ID is required")
+            app_secret = self.feishu_app_secret.get_secret_value()
+            if not app_secret or _is_placeholder(app_secret):
+                errors.append("HERMES_FEISHU_APP_SECRET is required")
+            if not self.feishu_allowed_chat_ids or any(
+                _is_placeholder(value) for value in self.feishu_allowed_chat_ids
+            ):
+                errors.append("HERMES_FEISHU_ALLOWED_CHAT_IDS must contain real chat IDs")
+            if not self.feishu_owner_open_ids or any(
+                _is_placeholder(value) for value in self.feishu_owner_open_ids
+            ):
+                errors.append("HERMES_FEISHU_OWNER_OPEN_IDS must contain real owner open IDs")
+        if not self.agent_endpoint_allowed_hosts:
+            errors.append(
+                "HERMES_AGENT_ENDPOINT_ALLOWED_HOSTS is required for production Agent dispatch"
+            )
         return errors
+
+    def has_feishu_configuration(self) -> bool:
+        return any(
+            (
+                self.feishu_app_id,
+                self.feishu_app_secret.get_secret_value(),
+                self.feishu_encrypt_key.get_secret_value(),
+                self.feishu_verification_token.get_secret_value(),
+                self.feishu_allowed_chat_ids,
+                self.feishu_owner_open_ids,
+                self.feishu_file_intake_agent_id,
+            )
+        )
 
     def has_valid_internal_api_token(self) -> bool:
         internal_token = self.internal_api_token.get_secret_value()

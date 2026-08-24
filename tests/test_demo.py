@@ -19,7 +19,13 @@ async def test_local_demo_runs_real_http_agent_contract() -> None:
     assert result["state"] == "succeeded"
     assert result["agents"] == ["researcher", "reviewer"]
     assert result["tasks"]["collect"]["agent_id"] == "researcher"
+    assert result["tasks"]["collect"]["route_decision"]["selected_agent_id"] == "researcher"
     assert result["tasks"]["review"]["agent_id"] == "reviewer"
+    assert result["registry_lifecycle"] == {
+        "agent_id": "reviewer",
+        "revisions": [1, 2],
+        "actions": ["registered", "updated", "deleted"],
+    }
     assert all(item["state"] == "succeeded" for item in result["tasks"].values())
 
 

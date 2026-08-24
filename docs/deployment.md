@@ -3,6 +3,10 @@
 Complete the configuration and validation steps in the README before using any of
 these deployment paths.
 
+Run `hermes-a2a validate-config --production --json` before startup and
+`hermes-a2a doctor --base-url <internal-url>` after startup. Doctor reads the internal
+token from the environment; never place it in a command-line argument.
+
 ## Native Python
 
 The package supports Python 3.11 or newer on macOS, Windows and Linux. Use the
@@ -51,11 +55,17 @@ domain and to the selected HTTP Agent endpoint. It does not require a larger inb
 proxy body limit because files are downloaded from Feishu after the signed event is
 accepted. Tune the `HERMES_FEISHU_FILE_*` limits for the container memory budget.
 
+Treat each registered HTTP Agent endpoint as outbound network authority. Set
+`HERMES_AGENT_ENDPOINT_ALLOWED_HOSTS` to explicit hostnames or narrow globs and enable
+`HERMES_AGENT_ENDPOINT_REQUIRE_HTTPS` unless a private-network Agent has a reviewed HTTP
+exception. Runtime registrations cannot override this policy.
+
 ## Upgrade and rollback
 
 1. Pin the wheel version, release tag or container digest.
 2. Back up the SQLite database or persistent volume.
 3. Start the new version in staging and verify `/readyz`.
-4. Run one HTTP Agent task and one Feishu callback task.
+4. Run `doctor`, preview one `POST /agents/resolve` decision, then run one HTTP Agent
+   task and one Feishu callback task.
 5. Roll back the application and database snapshot together if persisted models
    become incompatible.

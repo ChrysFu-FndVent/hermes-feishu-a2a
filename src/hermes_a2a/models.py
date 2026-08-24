@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from enum import StrEnum
 from typing import Any, Literal
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -12,11 +13,21 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _normalize_names(values: list[str]) -> list[str]:
+    return sorted({value.strip().lower() for value in values if value.strip()})
+
+
 class AgentStatus(StrEnum):
     online = "online"
     busy = "busy"
     degraded = "degraded"
     offline = "offline"
+
+
+class RegistrationOwner(StrEnum):
+    declarative = "declarative"
+    legacy = "legacy"
+    runtime = "runtime"
 
 
 class AgentRegistration(BaseModel):
@@ -34,6 +45,11 @@ class AgentRegistration(BaseModel):
     heartbeat_interval_seconds: int = Field(default=60, ge=10, le=3600)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
+    @field_validator("capabilities", "permissions")
+    @classmethod
+    def normalize_names(cls, values: list[str]) -> list[str]:
+        return _normalize_names(values)
+
     @model_validator(mode="after")
     def validate_transport_target(self) -> AgentRegistration:
         if self.transport == "http":
@@ -41,6 +57,11 @@ class AgentRegistration(BaseModel):
                 raise ValueError("HTTP agents require endpoint")
             if not self.endpoint.startswith(("http://", "https://")):
                 raise ValueError("HTTP agent endpoint must use http:// or https://")
+            parsed = urlsplit(self.endpoint)
+            if parsed.username or parsed.password or parsed.fragment:
+                raise ValueError("HTTP agent endpoint must not contain credentials or fragments")
+            if not parsed.hostname:
+                raise ValueError("HTTP agent endpoint must include a host")
         if self.transport == "feishu":
             if not self.open_id:
                 raise ValueError("Feishu agents require open_id")
@@ -50,11 +71,26 @@ class AgentRegistration(BaseModel):
 
 
 class AgentRecord(AgentRegistration):
+    managed_by: RegistrationOwner = RegistrationOwner.legacy
+    revision: int = Field(default=1, ge=1)
     status: AgentStatus = AgentStatus.offline
     registered_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
     last_heartbeat_at: datetime | None = None
+    load: float | None = Field(default=None, ge=0, le=1)
     last_error: str | None = None
     consecutive_failures: int = 0
+
+
+class AgentRegistryEvent(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: str = Field(default_factory=lambda: f"agent-event-{uuid4().hex[:12]}")
+    agent_id: str
+    action: Literal["registered", "updated", "deleted"]
+    revision: int = Field(ge=1)
+    managed_by: RegistrationOwner
+    occurred_at: datetime = Field(default_factory=utc_now)
 
 
 class Heartbeat(BaseModel):
@@ -62,6 +98,46 @@ class Heartbeat(BaseModel):
     load: float | None = Field(default=None, ge=0, le=1)
     capabilities: list[str] | None = None
     message: str | None = Field(default=None, max_length=500)
+
+    @field_validator("capabilities")
+    @classmethod
+    def normalize_capabilities(cls, values: list[str] | None) -> list[str] | None:
+        if values is None:
+            return None
+        return _normalize_names(values)
+
+
+class AgentSelector(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    required_capabilities: list[str] = Field(default_factory=list, max_length=32)
+    required_permissions: list[str] = Field(default_factory=list, max_length=32)
+    transport: Literal["http", "feishu"] | None = None
+    metadata_equals: dict[str, str | int | float | bool] = Field(default_factory=dict)
+    exclude_agent_ids: list[str] = Field(default_factory=list, max_length=64)
+    allow_degraded: bool = False
+
+    @field_validator("required_capabilities", "required_permissions")
+    @classmethod
+    def normalize_requirements(cls, values: list[str]) -> list[str]:
+        return _normalize_names(values)
+
+
+class RouteCandidate(BaseModel):
+    agent_id: str
+    eligible: bool
+    status: AgentStatus
+    load: float | None = None
+    consecutive_failures: int = 0
+    score: float | None = None
+    reasons: list[str] = Field(default_factory=list)
+
+
+class RouteDecision(BaseModel):
+    selector: AgentSelector
+    selected_agent_id: str | None = None
+    explanation: str
+    candidates: list[RouteCandidate] = Field(default_factory=list)
 
 
 class AttachmentReference(BaseModel):
@@ -96,10 +172,17 @@ class TaskSpec(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     prompt: str = Field(min_length=1, max_length=10000)
     agent_id: str | None = None
+    selector: AgentSelector | None = None
     attachments: list[AttachmentReference] = Field(default_factory=list, max_length=8)
     depends_on: list[str] = Field(default_factory=list)
     timeout_seconds: float | None = Field(default=None, gt=0, le=3600)
     retries: int = Field(default=1, ge=0, le=5)
+
+    @model_validator(mode="after")
+    def validate_assignment(self) -> TaskSpec:
+        if self.agent_id is not None and self.selector is not None:
+            raise ValueError("task must use either agent_id or selector, not both")
+        return self
 
 
 class WorkflowDefinition(BaseModel):
@@ -137,6 +220,7 @@ class TaskResult(BaseModel):
     output: str = ""
     error: str | None = None
     agent_id: str | None = None
+    route_decision: RouteDecision | None = None
     attempts: int = 0
     started_at: datetime | None = None
     finished_at: datetime | None = None

@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from json import JSONDecodeError
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
 
 from . import __version__
 from .attachments import parse_feishu_message
@@ -18,11 +18,13 @@ from .models import (
     AgentRecord,
     AgentRegistration,
     AgentResultEvent,
+    AgentSelector,
     Heartbeat,
     TaskSpec,
     WorkflowDefinition,
     WorkflowRun,
 )
+from .registry import AgentEndpointPolicyError, AgentOwnershipError, AgentRevisionConflict
 from .security import decrypt_feishu_event, verify_webhook_signature
 from .transport import close_transport
 
@@ -33,8 +35,7 @@ def create_app(settings: Settings | None = None, coordinator: Coordinator | None
     resolved = settings or get_settings()
     control = coordinator or Coordinator(resolved)
     if coordinator is None and resolved.agents_config_path.is_file():
-        for registration in load_agent_config(resolved.agents_config_path):
-            control.register(registration)
+        control.sync_declarative(load_agent_config(resolved.agents_config_path))
     if resolved.feishu_file_intake_agent_id:
         intake_agent = control.store.get_agent(resolved.feishu_file_intake_agent_id)
         if not intake_agent:
@@ -89,11 +90,76 @@ def create_app(settings: Settings | None = None, coordinator: Coordinator | None
 
     @app.get("/agents", dependencies=[Depends(require_internal)])
     async def list_agents() -> list[AgentRecord]:
-        return control.store.list_agents()
+        return control.registry.list()
 
     @app.post("/agents", response_model=AgentRecord, dependencies=[Depends(require_internal)])
     async def register_agent(registration: AgentRegistration) -> AgentRecord:
-        return control.register(registration)
+        try:
+            return control.register(registration)
+        except AgentOwnershipError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except AgentEndpointPolicyError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/agents/resolve", dependencies=[Depends(require_internal)])
+    async def resolve_agent(selector: AgentSelector) -> Any:
+        return control.registry.route(selector)
+
+    @app.get(
+        "/agents/{agent_id}",
+        response_model=AgentRecord,
+        dependencies=[Depends(require_internal)],
+    )
+    async def get_agent(agent_id: str) -> AgentRecord:
+        agent = control.registry.get(agent_id)
+        if agent is None:
+            raise HTTPException(status_code=404, detail="agent not found")
+        return agent
+
+    @app.put(
+        "/agents/{agent_id}",
+        response_model=AgentRecord,
+        dependencies=[Depends(require_internal)],
+    )
+    async def update_agent(
+        agent_id: str,
+        registration: AgentRegistration,
+        if_match: str | None = Header(default=None, alias="If-Match"),
+    ) -> AgentRecord:
+        try:
+            return control.registry.update_runtime(
+                agent_id,
+                registration,
+                expected_revision=_parse_revision(if_match),
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="agent not found") from exc
+        except AgentOwnershipError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except AgentRevisionConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.delete(
+        "/agents/{agent_id}",
+        status_code=204,
+        dependencies=[Depends(require_internal)],
+    )
+    async def delete_agent(agent_id: str) -> Response:
+        try:
+            control.registry.delete_runtime(agent_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="agent not found") from exc
+        except AgentOwnershipError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return Response(status_code=204)
+
+    @app.get("/agents/{agent_id}/events", dependencies=[Depends(require_internal)])
+    async def agent_events(agent_id: str) -> Any:
+        if control.registry.get(agent_id) is None and not control.registry.history(agent_id):
+            raise HTTPException(status_code=404, detail="agent not found")
+        return control.registry.history(agent_id)
 
     @app.post(
         "/agents/{agent_id}/heartbeat",
@@ -295,3 +361,15 @@ def create_app(settings: Settings | None = None, coordinator: Coordinator | None
         }
 
     return app
+
+
+def _parse_revision(if_match: str | None) -> int | None:
+    if if_match is None:
+        return None
+    value = if_match.strip()
+    if value.startswith("W/"):
+        value = value[2:]
+    value = value.strip('"')
+    if not value.isdigit() or int(value) < 1:
+        raise HTTPException(status_code=400, detail="If-Match must contain a positive revision")
+    return int(value)

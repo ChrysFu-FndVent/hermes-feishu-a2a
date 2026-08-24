@@ -67,6 +67,82 @@ async def test_health_and_protected_agent_registration(client: httpx.AsyncClient
 
 
 @pytest.mark.asyncio
+async def test_authenticated_agent_crud_history_and_route_preview(
+    client: httpx.AsyncClient,
+) -> None:
+    headers = {"X-Hermes-Token": TEST_API_TOKEN}
+    payload = {
+        "id": "router-worker",
+        "display_name": "Router Worker",
+        "role": "research",
+        "capabilities": ["research"],
+        "endpoint": "https://router.internal/execute",
+    }
+    created = await client.post("/agents", headers=headers, json=payload)
+    fetched = await client.get("/agents/router-worker", headers=headers)
+    payload["display_name"] = "Updated Router Worker"
+    payload["capabilities"] = ["research", "writing"]
+    updated = await client.put("/agents/router-worker", headers=headers, json=payload)
+    stale = await client.put(
+        "/agents/router-worker",
+        headers={**headers, "If-Match": '"1"'},
+        json=payload,
+    )
+    await client.post(
+        "/agents/router-worker/heartbeat",
+        headers=headers,
+        json={"status": "online", "load": 0.25},
+    )
+    routed = await client.post(
+        "/agents/resolve",
+        headers=headers,
+        json={"required_capabilities": ["writing"]},
+    )
+    history = await client.get("/agents/router-worker/events", headers=headers)
+    deleted = await client.delete("/agents/router-worker", headers=headers)
+    missing = await client.get("/agents/router-worker", headers=headers)
+
+    assert created.status_code == 200
+    assert fetched.json()["revision"] == 1
+    assert updated.json()["display_name"] == "Updated Router Worker"
+    assert updated.json()["revision"] == 2
+    assert stale.status_code == 409
+    assert routed.json()["selected_agent_id"] == "router-worker"
+    assert [event["action"] for event in history.json()] == ["registered", "updated"]
+    assert deleted.status_code == 204
+    assert missing.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_runtime_registration_returns_422_for_disallowed_endpoint(tmp_path: Path) -> None:
+    settings = Settings(
+        internal_api_token=TEST_API_TOKEN,
+        agent_endpoint_allowed_hosts=["*.internal"],
+        database_url=f"sqlite:///{tmp_path / 'endpoint-policy.db'}",
+    )
+    app = create_app(
+        settings=settings, coordinator=Coordinator(settings, store=Store(settings.database_url))
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+        base_url="http://test",
+    ) as policy_client:
+        response = await policy_client.post(
+            "/agents",
+            headers={"X-Hermes-Token": TEST_API_TOKEN},
+            json={
+                "id": "external",
+                "display_name": "External Agent",
+                "role": "test",
+                "endpoint": "https://external.example/execute",
+            },
+        )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Agent endpoint host external.example is not allowed"
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "configured_token",
     ["", "replace-with-a-long-random-token"],

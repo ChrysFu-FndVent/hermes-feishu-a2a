@@ -14,6 +14,7 @@ from .models import (
     WorkflowDefinition,
     WorkflowRun,
 )
+from .registry import AgentEndpointPolicyError, AgentRegistry
 from .store import Store
 from .transport import DispatchTransport
 
@@ -32,9 +33,11 @@ class WorkflowEngine:
         transport: DispatchTransport,
         timeout_seconds: float = 120,
         max_concurrency: int = 8,
+        registry: AgentRegistry | None = None,
     ):
         self.store = store
         self.transport = transport
+        self.registry = registry or AgentRegistry(store)
         self.timeout_seconds = timeout_seconds
         self.semaphore = asyncio.Semaphore(max_concurrency)
 
@@ -101,22 +104,45 @@ class WorkflowEngine:
         await self._run_task(task, run)
 
     async def _run_task(self, task: TaskSpec, run: WorkflowRun) -> None:
+        agent_id = task.agent_id
+        route_decision = None
+        if agent_id is None and task.selector is not None:
+            route_decision = self.registry.route(task.selector)
+            agent_id = route_decision.selected_agent_id
         result = TaskResult(
-            task_id=task.id, state=TaskState.running, agent_id=task.agent_id, started_at=now()
+            task_id=task.id,
+            state=TaskState.running,
+            agent_id=agent_id,
+            route_decision=route_decision,
+            started_at=now(),
         )
         run.task_results[task.id] = result
         self.store.save_run(run)
-        if not task.agent_id:
+        if not agent_id:
             result.state = TaskState.failed
-            result.error = "task has no agent_id"
+            result.error = (
+                route_decision.explanation if route_decision else "task has no agent_id or selector"
+            )
             result.finished_at = now()
             return
-        agent = self.store.get_agent(task.agent_id)
+        agent = self.store.get_agent(agent_id)
         if not agent or agent.status == AgentStatus.offline:
             result.state = TaskState.failed
-            result.error = f"agent {task.agent_id} is unavailable"
+            result.error = f"agent {agent_id} is unavailable"
             result.finished_at = now()
             return
+        try:
+            self.registry.ensure_dispatch_allowed(agent)
+        except AgentEndpointPolicyError as exc:
+            result.state = TaskState.failed
+            result.error = str(exc)
+            result.finished_at = now()
+            return
+        routed_task = (
+            task
+            if task.agent_id == agent_id
+            else task.model_copy(update={"agent_id": agent_id, "selector": None})
+        )
         timeout = task.timeout_seconds or self.timeout_seconds
         attempts = task.retries + 1
         async with self.semaphore:
@@ -124,7 +150,7 @@ class WorkflowEngine:
                 result.attempts = attempt
                 try:
                     result.output = await asyncio.wait_for(
-                        self.transport.dispatch(agent, task, run.run_id), timeout
+                        self.transport.dispatch(agent, routed_task, run.run_id), timeout
                     )
                     result.state = TaskState.succeeded
                     result.finished_at = now()
