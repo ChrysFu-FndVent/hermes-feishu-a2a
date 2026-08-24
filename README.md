@@ -473,7 +473,7 @@ Published release assets include a platform-independent wheel and source archive
 Published container tags support `linux/amd64` and `linux/arm64`:
 
 ```bash
-docker pull ghcr.io/chrysfu/hermes-feishu-a2a:0.4.0
+docker pull ghcr.io/chrysfu/hermes-feishu-a2a:0.4.1
 ```
 
 See [deployment](docs/deployment.md), [best practices](docs/best-practices.md), and
@@ -901,7 +901,7 @@ Webhook 在解析 JSON 前对原始请求体进行身份验证，然后检查验
 发布资产包括与平台无关的 wheel 和源代码归档。发布的容器标签支持 `linux/amd64` 和 `linux/arm64`：
 
 ```bash
-docker pull ghcr.io/chrysfu/hermes-feishu-a2a:0.4.0
+docker pull ghcr.io/chrysfu/hermes-feishu-a2a:0.4.1
 ```
 
 运行细节见[部署](docs/deployment.md)、[最佳实践](docs/best-practices.md)和[故障排除](docs/troubleshooting.md)。
