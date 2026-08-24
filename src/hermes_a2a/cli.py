@@ -11,6 +11,7 @@ import uvicorn
 from .config import Settings, load_agent_config
 from .demo import DemoError, run_local_demo, run_remote_demo
 from .diagnostics import run_doctor
+from .registry import validate_agent_endpoints
 from .scaffold import initialize_project
 
 app = typer.Typer(help="Hermes Feishu A2A coordinator tools")
@@ -41,6 +42,13 @@ def validate_config(
     except (OSError, ValueError) as exc:
         agents = []
         errors.append(str(exc))
+    errors.extend(
+        validate_agent_endpoints(
+            agents,
+            endpoint_allowed_hosts=settings.agent_endpoint_allowed_hosts,
+            endpoint_require_https=settings.agent_endpoint_require_https,
+        )
+    )
     ids = [agent.id for agent in agents]
     result = {"ok": not errors, "agents": ids, "errors": errors}
     if json_output:
@@ -74,13 +82,16 @@ def doctor(
     timeout_seconds: float = typer.Option(5, min=0.1, max=30),
 ) -> None:
     """Run read-only local and optional remote diagnostics."""
+    settings = Settings()
     report = run_doctor(
         config_path=config,
         data_dir=data_dir,
         offline=offline,
         base_url=base_url,
-        token=Settings().internal_api_token.get_secret_value() or None,
+        token=settings.internal_api_token.get_secret_value() or None,
         timeout_seconds=timeout_seconds,
+        endpoint_allowed_hosts=settings.agent_endpoint_allowed_hosts,
+        endpoint_require_https=settings.agent_endpoint_require_https,
     )
     typer.echo(report.model_dump_json(indent=2))
     if not report.ok:

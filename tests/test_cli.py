@@ -48,6 +48,32 @@ def test_validate_config_accepts_offline_project_and_supports_json(tmp_path: Pat
     assert json.loads(result.output) == {"ok": True, "agents": [], "errors": []}
 
 
+def test_validate_config_applies_production_endpoint_policy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = tmp_path / "agents.yaml"
+    config.write_text(
+        """agents:
+  - id: external
+    display_name: External
+    role: test
+    endpoint: https://evil.net/execute
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("HERMES_INTERNAL_API_TOKEN", "strong-internal-api-token-32-characters")
+    monkeypatch.setenv("HERMES_AGENT_ENDPOINT_ALLOWED_HOSTS", "*.internal")
+
+    result = runner.invoke(
+        app, ["validate-config", "--path", str(config), "--production", "--json"]
+    )
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["ok"] is False
+    assert payload["errors"] == ["Agent endpoint host evil.net is not allowed"]
+
+
 def test_doctor_offline_has_stable_checks_and_skips_network(tmp_path: Path) -> None:
     config = tmp_path / "agents.yaml"
     config.write_text("agents: []\n", encoding="utf-8")
@@ -166,3 +192,32 @@ def test_doctor_remote_invalid_token_fails_only_identity_check(
     assert checks["remote_readiness"].status == "pass"
     assert checks["remote_registry"].status == "fail"
     assert "401" in checks["remote_registry"].message
+
+
+def test_doctor_applies_local_endpoint_policy(tmp_path: Path) -> None:
+    config = tmp_path / "agents.yaml"
+    config.write_text(
+        """agents:
+  - id: insecure
+    display_name: Insecure
+    role: test
+    endpoint: http://agent.internal/execute
+""",
+        encoding="utf-8",
+    )
+
+    report = run_doctor(
+        config_path=config,
+        data_dir=tmp_path,
+        offline=True,
+        base_url=None,
+        token=None,
+        timeout_seconds=0.5,
+        endpoint_allowed_hosts=["*.internal"],
+        endpoint_require_https=True,
+    )
+
+    checks = {check.name: check for check in report.checks}
+    assert report.ok is False
+    assert checks["agent_config"].status == "fail"
+    assert checks["agent_config"].message == "HTTP Agent endpoints must use HTTPS"

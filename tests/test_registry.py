@@ -4,7 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from hermes_a2a.models import AgentRegistration, AgentSelector, AgentStatus, Heartbeat
+from hermes_a2a.models import (
+    AgentRecord,
+    AgentRegistration,
+    AgentSelector,
+    AgentStatus,
+    Heartbeat,
+    RegistrationOwner,
+)
 from hermes_a2a.registry import (
     AgentEndpointPolicyError,
     AgentOwnershipError,
@@ -161,4 +168,17 @@ def test_runtime_update_rejects_a_stale_revision(tmp_path: Path) -> None:
 
     with pytest.raises(AgentRevisionConflict, match="expected revision 1, current revision 2"):
         registry.update_runtime("researcher", registration(), expected_revision=1)
+    store.close()
+
+
+def test_runtime_delete_claims_legacy_registration_before_audit(tmp_path: Path) -> None:
+    store = Store(f"sqlite:///{tmp_path / 'legacy-delete.db'}")
+    legacy = AgentRecord(**registration("legacy").model_dump())
+    store.upsert_agent(legacy)
+    registry = AgentRegistry(store)
+
+    deleted = registry.delete_runtime("legacy")
+
+    assert deleted.managed_by == RegistrationOwner.runtime
+    assert registry.history("legacy")[-1].managed_by == RegistrationOwner.runtime
     store.close()

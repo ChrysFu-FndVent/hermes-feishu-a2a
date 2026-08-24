@@ -11,6 +11,7 @@ import httpx
 from pydantic import BaseModel, Field
 
 from .config import load_agent_config
+from .registry import validate_agent_endpoints
 
 
 class DiagnosticCheck(BaseModel):
@@ -34,10 +35,17 @@ def run_doctor(
     base_url: str | None,
     token: str | None,
     timeout_seconds: float,
+    endpoint_allowed_hosts: list[str] | None = None,
+    endpoint_require_https: bool = False,
 ) -> DoctorReport:
     checks = [
         _timed("python", _check_python),
-        _timed("agent_config", lambda: _check_agent_config(config_path)),
+        _timed(
+            "agent_config",
+            lambda: _check_agent_config(
+                config_path, endpoint_allowed_hosts, endpoint_require_https
+            ),
+        ),
         _timed("data_directory", lambda: _check_data_directory(data_dir)),
     ]
     if offline:
@@ -86,11 +94,22 @@ def _check_python() -> CheckResult:
     )
 
 
-def _check_agent_config(path: Path) -> CheckResult:
+def _check_agent_config(
+    path: Path,
+    endpoint_allowed_hosts: list[str] | None,
+    endpoint_require_https: bool,
+) -> CheckResult:
     try:
         agents = load_agent_config(path)
     except (OSError, ValueError) as exc:
         return "fail", str(exc), "Fix the Agent registry YAML and rerun validate-config."
+    errors = validate_agent_endpoints(
+        agents,
+        endpoint_allowed_hosts=endpoint_allowed_hosts,
+        endpoint_require_https=endpoint_require_https,
+    )
+    if errors:
+        return "fail", errors[0], "Fix the Agent endpoint policy and rerun validate-config."
     return "pass", f"loaded {len(agents)} Agent registrations", ""
 
 

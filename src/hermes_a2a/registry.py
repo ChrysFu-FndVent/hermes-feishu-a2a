@@ -32,6 +32,43 @@ class AgentRevisionConflict(ValueError):
     pass
 
 
+def validate_agent_endpoint(
+    registration: AgentRegistration,
+    *,
+    endpoint_allowed_hosts: list[str] | None = None,
+    endpoint_require_https: bool = False,
+) -> None:
+    if registration.transport != "http" or registration.endpoint is None:
+        return
+    parsed = urlsplit(registration.endpoint)
+    if endpoint_require_https and parsed.scheme != "https":
+        raise AgentEndpointPolicyError("HTTP Agent endpoints must use HTTPS")
+    hostname = parsed.hostname or ""
+    if endpoint_allowed_hosts and not any(
+        fnmatch(hostname, pattern) for pattern in endpoint_allowed_hosts
+    ):
+        raise AgentEndpointPolicyError(f"Agent endpoint host {hostname} is not allowed")
+
+
+def validate_agent_endpoints(
+    registrations: list[AgentRegistration],
+    *,
+    endpoint_allowed_hosts: list[str] | None = None,
+    endpoint_require_https: bool = False,
+) -> list[str]:
+    errors: list[str] = []
+    for registration in registrations:
+        try:
+            validate_agent_endpoint(
+                registration,
+                endpoint_allowed_hosts=endpoint_allowed_hosts,
+                endpoint_require_https=endpoint_require_https,
+            )
+        except AgentEndpointPolicyError as exc:
+            errors.append(str(exc))
+    return errors
+
+
 class AgentRegistry:
     """Own durable Agent registrations and the rules for changing them."""
 
@@ -143,6 +180,9 @@ class AgentRegistry:
                 raise AgentOwnershipError(
                     f"agent {agent_id} is managed by declarative configuration"
                 )
+            if current.managed_by == RegistrationOwner.legacy:
+                current.managed_by = RegistrationOwner.runtime
+                current.updated_at = utc_now()
             deleted = self.store.delete_agent(agent_id)
             self._record_event(deleted, "deleted")
             return deleted
@@ -244,16 +284,11 @@ class AgentRegistry:
         return current == registration
 
     def _validate_endpoint(self, registration: AgentRegistration) -> None:
-        if registration.transport != "http" or registration.endpoint is None:
-            return
-        parsed = urlsplit(registration.endpoint)
-        if self.endpoint_require_https and parsed.scheme != "https":
-            raise AgentEndpointPolicyError("HTTP Agent endpoints must use HTTPS")
-        hostname = parsed.hostname or ""
-        if self.endpoint_allowed_hosts and not any(
-            fnmatch(hostname, pattern) for pattern in self.endpoint_allowed_hosts
-        ):
-            raise AgentEndpointPolicyError(f"Agent endpoint host {hostname} is not allowed")
+        validate_agent_endpoint(
+            registration,
+            endpoint_allowed_hosts=self.endpoint_allowed_hosts,
+            endpoint_require_https=self.endpoint_require_https,
+        )
 
     @staticmethod
     def _evaluate(agent: AgentRecord, selector: AgentSelector) -> RouteCandidate:
