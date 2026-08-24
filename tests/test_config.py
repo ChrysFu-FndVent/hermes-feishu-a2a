@@ -23,6 +23,16 @@ def test_production_settings_reject_placeholders() -> None:
     assert len(errors) == 8
 
 
+def test_production_settings_allow_http_only_deployment_without_feishu() -> None:
+    errors = Settings(
+        env="production",
+        internal_api_token="strong-internal-api-token-32-characters",
+        agent_endpoint_allowed_hosts=["*.internal"],
+    ).validate_for_production()
+
+    assert errors == []
+
+
 def test_agent_config_rejects_placeholder_targets(tmp_path: Path) -> None:
     path = tmp_path / "agents.yaml"
     path.write_text(

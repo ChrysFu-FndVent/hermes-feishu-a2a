@@ -23,9 +23,12 @@ class FakeTransport:
         self.outputs = outputs or {}
         self.failures = failures
         self.calls: list[str] = []
+        self.tasks: list[TaskSpec] = []
 
     async def dispatch(self, agent, task, run_id):
+        validated_task = TaskSpec.model_validate(task.model_dump())
         self.calls.append(task.id)
+        self.tasks.append(validated_task)
         if self.failures:
             self.failures -= 1
             raise RuntimeError("temporary failure")
@@ -192,6 +195,8 @@ async def test_task_selector_routes_and_persists_decision(tmp_path: Path) -> Non
     assert task_result.route_decision is not None
     assert task_result.route_decision.selected_agent_id == "engineer"
     assert transport.calls == ["implement"]
+    assert transport.tasks[0].agent_id == "engineer"
+    assert transport.tasks[0].selector is None
 
 
 @pytest.mark.asyncio

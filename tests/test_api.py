@@ -114,6 +114,35 @@ async def test_authenticated_agent_crud_history_and_route_preview(
 
 
 @pytest.mark.asyncio
+async def test_runtime_registration_returns_422_for_disallowed_endpoint(tmp_path: Path) -> None:
+    settings = Settings(
+        internal_api_token=TEST_API_TOKEN,
+        agent_endpoint_allowed_hosts=["*.internal"],
+        database_url=f"sqlite:///{tmp_path / 'endpoint-policy.db'}",
+    )
+    app = create_app(
+        settings=settings, coordinator=Coordinator(settings, store=Store(settings.database_url))
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+        base_url="http://test",
+    ) as policy_client:
+        response = await policy_client.post(
+            "/agents",
+            headers={"X-Hermes-Token": TEST_API_TOKEN},
+            json={
+                "id": "external",
+                "display_name": "External Agent",
+                "role": "test",
+                "endpoint": "https://external.example/execute",
+            },
+        )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Agent endpoint host external.example is not allowed"
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "configured_token",
     ["", "replace-with-a-long-random-token"],

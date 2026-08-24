@@ -138,7 +138,11 @@ class WorkflowEngine:
             result.error = str(exc)
             result.finished_at = now()
             return
-        routed_task = task if task.agent_id == agent_id else task.model_copy(update={"agent_id": agent_id})
+        routed_task = (
+            task
+            if task.agent_id == agent_id
+            else task.model_copy(update={"agent_id": agent_id, "selector": None})
+        )
         timeout = task.timeout_seconds or self.timeout_seconds
         attempts = task.retries + 1
         async with self.semaphore:

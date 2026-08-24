@@ -8,6 +8,8 @@
   explanations and persisted route decisions.
 - Added optional Agent endpoint host allowlisting, HTTPS enforcement and unsafe URL rejection.
 - Added non-destructive `init`, offline/connected `doctor` and JSON configuration validation.
+- Kept Feishu optional for HTTP-only production deployments while validating any configured
+  Feishu integration as a complete, non-placeholder setup.
 - Extended the zero-credential CLI and Compose demonstrations to prove capability routing and the
   runtime registry lifecycle.
 

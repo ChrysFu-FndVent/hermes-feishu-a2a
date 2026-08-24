@@ -24,7 +24,7 @@ from .models import (
     WorkflowDefinition,
     WorkflowRun,
 )
-from .registry import AgentOwnershipError, AgentRevisionConflict
+from .registry import AgentEndpointPolicyError, AgentOwnershipError, AgentRevisionConflict
 from .security import decrypt_feishu_event, verify_webhook_signature
 from .transport import close_transport
 
@@ -98,6 +98,8 @@ def create_app(settings: Settings | None = None, coordinator: Coordinator | None
             return control.register(registration)
         except AgentOwnershipError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except AgentEndpointPolicyError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.post("/agents/resolve", dependencies=[Depends(require_internal)])
     async def resolve_agent(selector: AgentSelector) -> Any:

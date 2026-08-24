@@ -14,6 +14,9 @@ address every reported item. Placeholder values such as `replace-me`, `cli_xxx`,
 `oc_xxx` and `ou_xxx` are rejected for production configuration. Production also
 requires a positive `HERMES_AGENT_ENDPOINT_ALLOWED_HOSTS` policy.
 
+Feishu is optional for HTTP-only deployments. If any Feishu credential, allowlist or file-intake
+setting is present, production validation treats Feishu as enabled and requires the complete set.
+
 HTTP Agents require an `endpoint`. Feishu Agents require both `open_id` and
 `metadata.chat_id`.
 
@@ -33,8 +36,9 @@ degraded status, transport mismatch, metadata mismatch, or explicit exclusion.
 ## `/readyz` returns 503
 
 The process is running, but required production settings are missing or still contain
-placeholders. Inspect the JSON response for the exact variable names. Use `/healthz`
-only as a process liveness check.
+placeholders. Inspect the JSON response for the exact variable names. HTTP-only deployments do not
+need Feishu values; partially configured Feishu integrations do. Use `/healthz` only as a process
+liveness check.
 
 ## Docker cannot write the database
 

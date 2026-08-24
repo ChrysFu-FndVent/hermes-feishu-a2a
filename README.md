@@ -171,18 +171,19 @@ Copy-Item .env.example .env
 Copy-Item config\agents.example.yaml config\agents.yaml
 ```
 
-Edit both files and replace every placeholder. The required production settings are:
+Edit both files and replace every core placeholder. Remove or clear the optional Feishu block for
+an HTTP-only deployment. If any Feishu value is configured, all Feishu rows below become required.
 
 | Variable | Purpose |
 | --- | --- |
 | `HERMES_INTERNAL_API_TOKEN` | Random value of at least 32 characters for protected APIs |
-| `HERMES_FEISHU_APP_ID` | Feishu/Lark custom app ID |
-| `HERMES_FEISHU_APP_SECRET` | Custom app secret |
-| `HERMES_FEISHU_ENCRYPT_KEY` | Event subscription encrypt key used for signatures |
-| `HERMES_FEISHU_VERIFICATION_TOKEN` | Event subscription verification token |
-| `HERMES_FEISHU_ALLOWED_CHAT_IDS` | Comma-separated `oc_...` chat IDs |
-| `HERMES_FEISHU_OWNER_OPEN_IDS` | Comma-separated `ou_...` human owner IDs |
-| `HERMES_FEISHU_FILE_INTAKE_AGENT_ID` | Registered Agent that processes authorized Feishu file messages |
+| `HERMES_FEISHU_APP_ID` | Feishu/Lark custom app ID; required only when Feishu is configured |
+| `HERMES_FEISHU_APP_SECRET` | Custom app secret; required only when Feishu is configured |
+| `HERMES_FEISHU_ENCRYPT_KEY` | Event subscription encrypt key used for signatures; required only when Feishu is configured |
+| `HERMES_FEISHU_VERIFICATION_TOKEN` | Event subscription verification token; required only when Feishu is configured |
+| `HERMES_FEISHU_ALLOWED_CHAT_IDS` | Comma-separated `oc_...` chat IDs; required only when Feishu is configured |
+| `HERMES_FEISHU_OWNER_OPEN_IDS` | Comma-separated `ou_...` human owner IDs; required only when Feishu is configured |
+| `HERMES_FEISHU_FILE_INTAKE_AGENT_ID` | Optional registered Agent that processes authorized Feishu file messages |
 | `HERMES_AGENTS_CONFIG_PATH` | Agent registry file, normally `config/agents.yaml` |
 | `HERMES_AGENT_ENDPOINT_ALLOWED_HOSTS` | Comma-separated positive host globs for HTTP Agent dispatch; required in production |
 | `HERMES_AGENT_ENDPOINT_REQUIRE_HTTPS` | Reject non-HTTPS Agent endpoints when enabled |
@@ -247,8 +248,8 @@ Open these URLs after startup:
 - `http://127.0.0.1:8080/readyz` for production configuration readiness.
 - `http://127.0.0.1:8080/docs` for the interactive API.
 
-`/readyz` returns HTTP 503 in production until all required Feishu values and
-allow-lists are real, non-placeholder values.
+`/readyz` returns HTTP 503 in production until the internal token and Agent endpoint allowlist are
+valid. When Feishu is configured, its required values and allowlists must also be real and complete.
 
 ## Docker
 
@@ -640,18 +641,18 @@ Copy-Item .env.example .env
 Copy-Item config\agents.example.yaml config\agents.yaml
 ```
 
-编辑两个文件并替换所有占位符。生产环境必需的设置包括：
+编辑两个文件并替换所有核心占位符。HTTP-only 部署应删除或清空可选的飞书配置块；一旦配置任一飞书值，下表中的飞书配置就全部成为必填项。
 
 | 变量 | 用途 |
 | --- | --- |
 | `HERMES_INTERNAL_API_TOKEN` | 保护 API 的至少 32 字符随机值 |
-| `HERMES_FEISHU_APP_ID` | 飞书/Lark 自建应用 ID |
-| `HERMES_FEISHU_APP_SECRET` | 自建应用密钥 |
-| `HERMES_FEISHU_ENCRYPT_KEY` | 用于签名的事件订阅加密密钥 |
-| `HERMES_FEISHU_VERIFICATION_TOKEN` | 事件订阅验证令牌 |
-| `HERMES_FEISHU_ALLOWED_CHAT_IDS` | 以逗号分隔的 `oc_...` 会话 ID |
-| `HERMES_FEISHU_OWNER_OPEN_IDS` | 以逗号分隔的 `ou_...` 人类所有者 ID |
-| `HERMES_FEISHU_FILE_INTAKE_AGENT_ID` | 处理获授权飞书文件消息的已注册 Agent |
+| `HERMES_FEISHU_APP_ID` | 飞书/Lark 自建应用 ID；仅在配置飞书时必填 |
+| `HERMES_FEISHU_APP_SECRET` | 自建应用密钥；仅在配置飞书时必填 |
+| `HERMES_FEISHU_ENCRYPT_KEY` | 用于签名的事件订阅加密密钥；仅在配置飞书时必填 |
+| `HERMES_FEISHU_VERIFICATION_TOKEN` | 事件订阅验证令牌；仅在配置飞书时必填 |
+| `HERMES_FEISHU_ALLOWED_CHAT_IDS` | 以逗号分隔的 `oc_...` 会话 ID；仅在配置飞书时必填 |
+| `HERMES_FEISHU_OWNER_OPEN_IDS` | 以逗号分隔的 `ou_...` 人类所有者 ID；仅在配置飞书时必填 |
+| `HERMES_FEISHU_FILE_INTAKE_AGENT_ID` | 处理获授权飞书文件消息的可选 Agent |
 | `HERMES_AGENTS_CONFIG_PATH` | Agent 注册表文件，通常为 `config/agents.yaml` |
 | `HERMES_AGENT_ENDPOINT_ALLOWED_HOSTS` | HTTP Agent 分派允许的逗号分隔主机 glob；生产环境必填 |
 | `HERMES_AGENT_ENDPOINT_REQUIRE_HTTPS` | 启用后拒绝非 HTTPS Agent 端点 |
@@ -712,7 +713,7 @@ Windows PowerShell：
 - `http://127.0.0.1:8080/readyz`：生产配置就绪状态。
 - `http://127.0.0.1:8080/docs`：交互式 API。
 
-在生产模式下，只有当所有必需的飞书配置和白名单都是真实且非占位值时，`/readyz` 才不会返回 HTTP 503。
+在生产模式下，内部令牌和 Agent 端点允许列表有效后，`/readyz` 才不会返回 HTTP 503。若已配置飞书，其必需值与允许列表也必须真实且完整。
 
 ## Docker
 

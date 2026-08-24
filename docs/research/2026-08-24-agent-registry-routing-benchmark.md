@@ -1,7 +1,8 @@
 # Agent Registry and Routing Benchmark
 
-Research date: 2026-08-24  
-Activity window: 2025-08-24 through 2026-08-24  
+Research date: 2026-08-24
+
+Activity window: 2025-08-24 through 2026-08-24
 Target baseline: [`hermes-feishu-a2a` at `30f6945`](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/tree/30f6945f2f8717c6a939c05848ecb20a586cb14f)
 
 ## Executive summary

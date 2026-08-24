@@ -3,9 +3,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import httpx
+import pytest
 from typer.testing import CliRunner
 
 from hermes_a2a.cli import app
+from hermes_a2a.diagnostics import run_doctor
 
 runner = CliRunner()
 
@@ -62,3 +65,104 @@ def test_doctor_offline_has_stable_checks_and_skips_network(tmp_path: Path) -> N
     assert checks["agent_config"]["status"] == "pass"
     assert checks["remote_health"]["status"] == "skip"
     assert checks["remote_registry"]["status"] == "skip"
+
+
+def _mock_doctor_client(
+    monkeypatch: pytest.MonkeyPatch, handler: httpx.MockTransport
+) -> None:
+    client_type = httpx.Client
+
+    def client_factory(*args, **kwargs):
+        return client_type(*args, **kwargs, transport=handler)
+
+    monkeypatch.setattr("hermes_a2a.diagnostics.httpx.Client", client_factory)
+
+
+def test_doctor_remote_checks_succeed_with_authenticated_registry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = tmp_path / "agents.yaml"
+    config.write_text("agents: []\n", encoding="utf-8")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/agents":
+            assert request.headers["X-Hermes-Token"] == "doctor-token"
+            return httpx.Response(200, json=[])
+        return httpx.Response(200, json={"status": "ok"})
+
+    _mock_doctor_client(monkeypatch, httpx.MockTransport(handler))
+
+    report = run_doctor(
+        config_path=config,
+        data_dir=tmp_path,
+        offline=False,
+        base_url="http://hermes.internal",
+        token="doctor-token",
+        timeout_seconds=0.5,
+    )
+
+    assert report.ok is True
+    assert {check.name: check.status for check in report.checks} == {
+        "python": "pass",
+        "agent_config": "pass",
+        "data_directory": "pass",
+        "remote_health": "pass",
+        "remote_readiness": "pass",
+        "remote_registry": "pass",
+    }
+
+
+def test_doctor_remote_timeout_is_a_bounded_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = tmp_path / "agents.yaml"
+    config.write_text("agents: []\n", encoding="utf-8")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("timed out", request=request)
+
+    _mock_doctor_client(monkeypatch, httpx.MockTransport(handler))
+
+    report = run_doctor(
+        config_path=config,
+        data_dir=tmp_path,
+        offline=False,
+        base_url="http://hermes.internal",
+        token="doctor-token",
+        timeout_seconds=0.1,
+    )
+
+    checks = {check.name: check for check in report.checks}
+    assert report.ok is False
+    assert checks["remote_health"].status == "fail"
+    assert "timed out" in checks["remote_health"].message
+
+
+def test_doctor_remote_invalid_token_fails_only_identity_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = tmp_path / "agents.yaml"
+    config.write_text("agents: []\n", encoding="utf-8")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/agents":
+            return httpx.Response(401, json={"detail": "invalid internal token"})
+        return httpx.Response(200, json={"status": "ok"})
+
+    _mock_doctor_client(monkeypatch, httpx.MockTransport(handler))
+
+    report = run_doctor(
+        config_path=config,
+        data_dir=tmp_path,
+        offline=False,
+        base_url="http://hermes.internal",
+        token="invalid-token",
+        timeout_seconds=0.5,
+    )
+
+    checks = {check.name: check for check in report.checks}
+    assert report.ok is False
+    assert checks["remote_health"].status == "pass"
+    assert checks["remote_readiness"].status == "pass"
+    assert checks["remote_registry"].status == "fail"
+    assert "401" in checks["remote_registry"].message

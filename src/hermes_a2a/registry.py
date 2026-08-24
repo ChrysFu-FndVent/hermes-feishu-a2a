@@ -53,7 +53,7 @@ class AgentRegistry:
                 raise AgentOwnershipError(
                     f"agent {registration.id} is managed by declarative configuration"
                 )
-            return self._write(
+            return self._upsert_registration_and_audit(
                 registration,
                 RegistrationOwner.runtime,
                 "updated" if current else "registered",
@@ -76,7 +76,7 @@ class AgentRegistry:
                     self._record_event(saved, "updated")
                     return saved
                 return current
-            return self._write(
+            return self._upsert_registration_and_audit(
                 registration,
                 RegistrationOwner.declarative,
                 "updated" if current else "registered",
@@ -130,7 +130,9 @@ class AgentRegistry:
                 raise AgentRevisionConflict(
                     f"expected revision {expected_revision}, current revision {current.revision}"
                 )
-            return self._write(registration, RegistrationOwner.runtime, "updated", current)
+            return self._upsert_registration_and_audit(
+                registration, RegistrationOwner.runtime, "updated", current
+            )
 
     def delete_runtime(self, agent_id: str) -> AgentRecord:
         with self._lock:
@@ -194,7 +196,7 @@ class AgentRegistry:
             candidates=candidates,
         )
 
-    def _write(
+    def _upsert_registration_and_audit(
         self,
         registration: AgentRegistration,
         managed_by: RegistrationOwner,

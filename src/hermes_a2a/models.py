@@ -13,6 +13,10 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _normalize_names(values: list[str]) -> list[str]:
+    return sorted({value.strip().lower() for value in values if value.strip()})
+
+
 class AgentStatus(StrEnum):
     online = "online"
     busy = "busy"
@@ -44,8 +48,7 @@ class AgentRegistration(BaseModel):
     @field_validator("capabilities", "permissions")
     @classmethod
     def normalize_names(cls, values: list[str]) -> list[str]:
-        normalized = sorted({value.strip().lower() for value in values if value.strip()})
-        return normalized
+        return _normalize_names(values)
 
     @model_validator(mode="after")
     def validate_transport_target(self) -> AgentRegistration:
@@ -101,7 +104,7 @@ class Heartbeat(BaseModel):
     def normalize_capabilities(cls, values: list[str] | None) -> list[str] | None:
         if values is None:
             return None
-        return sorted({value.strip().lower() for value in values if value.strip()})
+        return _normalize_names(values)
 
 
 class AgentSelector(BaseModel):
@@ -117,7 +120,7 @@ class AgentSelector(BaseModel):
     @field_validator("required_capabilities", "required_permissions")
     @classmethod
     def normalize_requirements(cls, values: list[str]) -> list[str]:
-        return sorted({value.strip().lower() for value in values if value.strip()})
+        return _normalize_names(values)
 
 
 class RouteCandidate(BaseModel):

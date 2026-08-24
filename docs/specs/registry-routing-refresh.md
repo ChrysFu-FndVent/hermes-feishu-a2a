@@ -18,10 +18,13 @@
 
 ## Compatibility and security
 
-- Existing records without ownership metadata load as runtime registrations.
-- Existing `POST /agents`, heartbeat, explicit workflow assignment, and config files remain valid.
+- Existing records without ownership metadata load as legacy registrations and are claimed by the
+  first declarative or runtime management operation.
+- Existing `POST /agents`, heartbeat, explicit workflow assignment, and Agent config files remain
+  valid; production deployments must add an explicit endpoint host allowlist.
 - Declarative registrations cannot be mutated or deleted through runtime control endpoints.
-- HTTP Agent endpoints reject embedded credentials and support an optional host allowlist.
+- HTTP Agent endpoints reject embedded credentials; the host allowlist is optional outside
+  production and required in production.
 - Route decisions are deterministic and persist with task results.
 
 ## Acceptance
