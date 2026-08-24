@@ -30,6 +30,9 @@ def test_init_creates_a_non_destructive_zero_credential_project(tmp_path: Path) 
     assert "required_capabilities: [research]" in (
         tmp_path / "examples/capability-routing.yaml"
     ).read_text()
+    assert "image: ghcr.io/chrysfu/hermes-feishu-a2a:0.4.0" in (
+        tmp_path / "compose.yaml"
+    ).read_text()
     assert "HERMES_INTERNAL_API_TOKEN" not in result.output
 
     second = runner.invoke(app, ["init", "--directory", str(tmp_path)])

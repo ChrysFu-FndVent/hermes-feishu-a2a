@@ -3,7 +3,7 @@
 Research date: 2026-08-24
 
 Activity window: 2025-08-24 through 2026-08-24
-Target baseline: [`hermes-feishu-a2a` at `30f6945`](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/tree/30f6945f2f8717c6a939c05848ecb20a586cb14f)
+Target baseline: [`hermes-feishu-a2a` at `30f6945`](https://github.com/ChrysFu/hermes-feishu-a2a/tree/30f6945f2f8717c6a939c05848ecb20a586cb14f)
 
 ## Executive summary
 
@@ -36,11 +36,11 @@ The official [`larksuite/lark-openapi-mcp`](https://github.com/larksuite/lark-op
 
 The baseline already does the following well:
 
-- Agent configuration rejects unknown fields, validates transport-specific requirements, and bounds IDs and heartbeat intervals ([models](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/blob/30f6945f2f8717c6a939c05848ecb20a586cb14f/src/hermes_a2a/models.py#L22-L50)).
-- SQLite persists Agents, workflows, runs, and claimed events behind a small replaceable store boundary ([store](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/blob/30f6945f2f8717c6a939c05848ecb20a586cb14f/src/hermes_a2a/store.py#L13-L43)).
-- Registry list, create/upsert, and heartbeat APIs require the internal token ([API](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/blob/30f6945f2f8717c6a939c05848ecb20a586cb14f/src/hermes_a2a/api.py#L90-L107)).
-- The workflow engine enforces dependencies, concurrency, timeout, retry, and Agent health, but a task without a literal `agent_id` fails ([workflow engine](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/blob/30f6945f2f8717c6a939c05848ecb20a586cb14f/src/hermes_a2a/workflows.py#L103-L144)).
-- `validate-config` reports configuration errors and `demo` runs a real, temporary, zero-credential workflow ([CLI](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/blob/30f6945f2f8717c6a939c05848ecb20a586cb14f/src/hermes_a2a/cli.py#L29-L72)).
+- Agent configuration rejects unknown fields, validates transport-specific requirements, and bounds IDs and heartbeat intervals ([models](https://github.com/ChrysFu/hermes-feishu-a2a/blob/30f6945f2f8717c6a939c05848ecb20a586cb14f/src/hermes_a2a/models.py#L22-L50)).
+- SQLite persists Agents, workflows, runs, and claimed events behind a small replaceable store boundary ([store](https://github.com/ChrysFu/hermes-feishu-a2a/blob/30f6945f2f8717c6a939c05848ecb20a586cb14f/src/hermes_a2a/store.py#L13-L43)).
+- Registry list, create/upsert, and heartbeat APIs require the internal token ([API](https://github.com/ChrysFu/hermes-feishu-a2a/blob/30f6945f2f8717c6a939c05848ecb20a586cb14f/src/hermes_a2a/api.py#L90-L107)).
+- The workflow engine enforces dependencies, concurrency, timeout, retry, and Agent health, but a task without a literal `agent_id` fails ([workflow engine](https://github.com/ChrysFu/hermes-feishu-a2a/blob/30f6945f2f8717c6a939c05848ecb20a586cb14f/src/hermes_a2a/workflows.py#L103-L144)).
+- `validate-config` reports configuration errors and `demo` runs a real, temporary, zero-credential workflow ([CLI](https://github.com/ChrysFu/hermes-feishu-a2a/blob/30f6945f2f8717c6a939c05848ecb20a586cb14f/src/hermes_a2a/cli.py#L29-L72)).
 
 The resulting gaps are concrete:
 

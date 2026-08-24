@@ -64,7 +64,7 @@ tasks:
 def _compose_file() -> str:
     return f"""services:
   hermes:
-    image: ghcr.io/chrysfu-fndvent/hermes-feishu-a2a:{__version__}
+    image: ghcr.io/chrysfu/hermes-feishu-a2a:{__version__}
     env_file: .env
     environment:
       HERMES_HOST: 0.0.0.0

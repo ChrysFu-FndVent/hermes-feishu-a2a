@@ -3,11 +3,11 @@
   <img src="assets/readme/hermes-feishu-a2a-banner.svg" alt="hermes-feishu-a2a project banner" width="100%" />
 </p>
 <p align="center">
-  <a href="https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/ChrysFu-FndVent/hermes-feishu-a2a?style=for-the-badge&amp;logo=github" /></a>
-  <a href="https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/ChrysFu-FndVent/hermes-feishu-a2a?style=for-the-badge" /></a>
-  <a href="https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/ChrysFu-FndVent/hermes-feishu-a2a?style=for-the-badge" /></a>
-  <a href="https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/search?l=Python"><img alt="Top language" src="https://img.shields.io/github/languages/top/ChrysFu-FndVent/hermes-feishu-a2a?style=for-the-badge" /></a>
-  <a href="https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/ChrysFu-FndVent/hermes-feishu-a2a?style=for-the-badge" /></a>
+  <a href="https://github.com/ChrysFu/hermes-feishu-a2a/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/ChrysFu/hermes-feishu-a2a?style=for-the-badge&amp;logo=github" /></a>
+  <a href="https://github.com/ChrysFu/hermes-feishu-a2a/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/ChrysFu/hermes-feishu-a2a?style=for-the-badge" /></a>
+  <a href="https://github.com/ChrysFu/hermes-feishu-a2a/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/ChrysFu/hermes-feishu-a2a?style=for-the-badge" /></a>
+  <a href="https://github.com/ChrysFu/hermes-feishu-a2a/search?l=Python"><img alt="Top language" src="https://img.shields.io/github/languages/top/ChrysFu/hermes-feishu-a2a?style=for-the-badge" /></a>
+  <a href="https://github.com/ChrysFu/hermes-feishu-a2a/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/ChrysFu/hermes-feishu-a2a?style=for-the-badge" /></a>
 </p>
 <!-- README-ARCHITECT: visual-shell end -->
 
@@ -24,10 +24,10 @@
 A self-hosted workflow coordinator for dispatching bounded tasks to registered
 Agents through HTTP or Feishu/Lark.
 
-[![CI](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/actions/workflows/ci.yml)
+[![CI](https://github.com/ChrysFu/hermes-feishu-a2a/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ChrysFu/hermes-feishu-a2a/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](Dockerfile)
-[![Release](https://img.shields.io/github/v/release/ChrysFu-FndVent/hermes-feishu-a2a)](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/releases)
+[![Release](https://img.shields.io/github/v/release/ChrysFu/hermes-feishu-a2a)](https://github.com/ChrysFu/hermes-feishu-a2a/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F4C430.svg)](LICENSE)
 
 Hermes stores declarative and runtime Agent registrations, matches task constraints to
@@ -68,7 +68,7 @@ temporary state.
 macOS or Linux:
 
 ```bash
-git clone https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git
+git clone https://github.com/ChrysFu/hermes-feishu-a2a.git
 cd hermes-feishu-a2a
 python3 -m venv .venv
 .venv/bin/python -m pip install .
@@ -78,7 +78,7 @@ python3 -m venv .venv
 Windows PowerShell:
 
 ```powershell
-git clone https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git
+git clone https://github.com/ChrysFu/hermes-feishu-a2a.git
 Set-Location hermes-feishu-a2a
 py -3.11 -m venv .venv
 .venv\Scripts\python.exe -m pip install .
@@ -120,7 +120,7 @@ Prerequisites: Git and Python 3.11 or newer.
 macOS or Linux:
 
 ```bash
-git clone https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git
+git clone https://github.com/ChrysFu/hermes-feishu-a2a.git
 cd hermes-feishu-a2a
 python3 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
@@ -130,7 +130,7 @@ python3 -m venv .venv
 Windows PowerShell:
 
 ```powershell
-git clone https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git
+git clone https://github.com/ChrysFu/hermes-feishu-a2a.git
 Set-Location hermes-feishu-a2a
 py -3.11 -m venv .venv
 .venv\Scripts\python.exe -m pip install --upgrade pip
@@ -473,7 +473,7 @@ Published release assets include a platform-independent wheel and source archive
 Published container tags support `linux/amd64` and `linux/arm64`:
 
 ```bash
-docker pull ghcr.io/chrysfu-fndvent/hermes-feishu-a2a:0.4.0
+docker pull ghcr.io/chrysfu/hermes-feishu-a2a:0.4.0
 ```
 
 See [deployment](docs/deployment.md), [best practices](docs/best-practices.md), and
@@ -509,10 +509,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). This project is released under the
 
 一个自托管的工作流协调器，通过 HTTP 或飞书/Lark 将边界明确的任务分派给已注册的 Agent。
 
-[![CI](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/actions/workflows/ci.yml)
+[![CI](https://github.com/ChrysFu/hermes-feishu-a2a/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ChrysFu/hermes-feishu-a2a/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](Dockerfile)
-[![Release](https://img.shields.io/github/v/release/ChrysFu-FndVent/hermes-feishu-a2a)](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/releases)
+[![Release](https://img.shields.io/github/v/release/ChrysFu/hermes-feishu-a2a)](https://github.com/ChrysFu/hermes-feishu-a2a/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F4C430.svg)](LICENSE)
 
 Hermes 存储声明式和运行时 Agent 注册信息，通过可检查的路由决策将任务约束匹配到在线能力，执行依赖屏障、超时和重试，并通过经过身份验证的 API 提供可追溯结果。飞书 webhook 事件会根据已配置的签名、会话白名单和发送者白名单进行验证。
@@ -542,7 +542,7 @@ Hermes 不包含 LLM 规划器或 Agent 运行时。调用方必须提交工作�
 macOS 或 Linux：
 
 ```bash
-git clone https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git
+git clone https://github.com/ChrysFu/hermes-feishu-a2a.git
 cd hermes-feishu-a2a
 python3 -m venv .venv
 .venv/bin/python -m pip install .
@@ -552,7 +552,7 @@ python3 -m venv .venv
 Windows PowerShell：
 
 ```powershell
-git clone https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git
+git clone https://github.com/ChrysFu/hermes-feishu-a2a.git
 Set-Location hermes-feishu-a2a
 py -3.11 -m venv .venv
 .venv\Scripts\python.exe -m pip install .
@@ -593,7 +593,7 @@ Python wheel 与平台无关。发布的容器支持 `linux/amd64` 和 `linux/ar
 macOS 或 Linux：
 
 ```bash
-git clone https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git
+git clone https://github.com/ChrysFu/hermes-feishu-a2a.git
 cd hermes-feishu-a2a
 python3 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
@@ -603,7 +603,7 @@ python3 -m venv .venv
 Windows PowerShell：
 
 ```powershell
-git clone https://github.com/ChrysFu-FndVent/hermes-feishu-a2a.git
+git clone https://github.com/ChrysFu/hermes-feishu-a2a.git
 Set-Location hermes-feishu-a2a
 py -3.11 -m venv .venv
 .venv\Scripts\python.exe -m pip install --upgrade pip
@@ -901,7 +901,7 @@ Webhook 在解析 JSON 前对原始请求体进行身份验证，然后检查验
 发布资产包括与平台无关的 wheel 和源代码归档。发布的容器标签支持 `linux/amd64` 和 `linux/arm64`：
 
 ```bash
-docker pull ghcr.io/chrysfu-fndvent/hermes-feishu-a2a:0.4.0
+docker pull ghcr.io/chrysfu/hermes-feishu-a2a:0.4.0
 ```
 
 运行细节见[部署](docs/deployment.md)、[最佳实践](docs/best-practices.md)和[故障排除](docs/troubleshooting.md)。
