@@ -13,6 +13,7 @@ from .models import (
     WorkflowDefinition,
     WorkflowRun,
 )
+from .registry import AgentRegistry
 from .store import Store
 from .transport import DispatchTransport, FeishuClient
 from .workflows import WorkflowEngine, now
@@ -32,38 +33,34 @@ class Coordinator:
     ):
         self.settings = settings
         self.store = store or Store(settings.database_url)
+        self.registry = AgentRegistry(
+            self.store,
+            endpoint_allowed_hosts=settings.agent_endpoint_allowed_hosts,
+            endpoint_require_https=settings.agent_endpoint_require_https,
+        )
         self.transport = transport or DispatchTransport(feishu=FeishuClient(settings))
         self.engine = WorkflowEngine(
             self.store,
             self.transport,
             settings.default_task_timeout_seconds,
             settings.max_concurrency,
+            registry=self.registry,
         )
         self._jobs: set[asyncio.Task[WorkflowRun]] = set()
 
     def register(self, registration: AgentRegistration) -> AgentRecord:
-        current = self.store.get_agent(registration.id)
-        record = AgentRecord(
-            **registration.model_dump(),
-            status=current.status if current else AgentStatus.offline,
-            registered_at=current.registered_at if current else now(),
-            last_heartbeat_at=current.last_heartbeat_at if current else None,
-        )
-        return self.store.upsert_agent(record)
+        return self.registry.register_runtime(registration)
+
+    def register_declarative(self, registration: AgentRegistration) -> AgentRecord:
+        return self.registry.register_declarative(registration)
+
+    def sync_declarative(
+        self, registrations: list[AgentRegistration]
+    ) -> list[AgentRecord]:
+        return self.registry.sync_declarative(registrations)
 
     def heartbeat(self, agent_id: str, heartbeat: Heartbeat) -> AgentRecord:
-        agent = self.store.get_agent(agent_id)
-        if not agent:
-            raise KeyError(agent_id)
-        agent.status = heartbeat.status
-        agent.last_heartbeat_at = now()
-        agent.last_error = heartbeat.message if heartbeat.status == AgentStatus.degraded else None
-        agent.consecutive_failures = (
-            0 if heartbeat.status == AgentStatus.online else agent.consecutive_failures
-        )
-        if heartbeat.capabilities is not None:
-            agent.capabilities = heartbeat.capabilities
-        return self.store.upsert_agent(agent)
+        return self.registry.heartbeat(agent_id, heartbeat)
 
     def health_sweep(self) -> list[AgentRecord]:
         changed: list[AgentRecord] = []

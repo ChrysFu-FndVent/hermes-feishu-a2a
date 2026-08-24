@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     internal_api_token: SecretStr = SecretStr("")
     agents_config_path: Path = Path("config/agents.yaml")
+    agent_endpoint_allowed_hosts: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    agent_endpoint_require_https: bool = False
     max_concurrency: int = Field(default=8, ge=1, le=128)
     default_task_timeout_seconds: float = Field(default=120, gt=0, le=3600)
     webhook_tolerance_seconds: int = Field(default=300, ge=0, le=3600)
@@ -51,6 +53,7 @@ class Settings(BaseSettings):
         "feishu_allowed_chat_ids",
         "feishu_owner_open_ids",
         "feishu_file_allowed_extensions",
+        "agent_endpoint_allowed_hosts",
         mode="before",
     )
     @classmethod
@@ -67,6 +70,11 @@ class Settings(BaseSettings):
     @classmethod
     def normalize_extensions(cls, value: list[str]) -> list[str]:
         return [item.lower() if item.startswith(".") else f".{item.lower()}" for item in value]
+
+    @field_validator("agent_endpoint_allowed_hosts")
+    @classmethod
+    def normalize_endpoint_hosts(cls, value: list[str]) -> list[str]:
+        return sorted({item.lower() for item in value})
 
     def validate_for_production(self) -> list[str]:
         errors: list[str] = []
@@ -96,6 +104,10 @@ class Settings(BaseSettings):
             _is_placeholder(value) for value in self.feishu_owner_open_ids
         ):
             errors.append("HERMES_FEISHU_OWNER_OPEN_IDS must contain real owner open IDs")
+        if not self.agent_endpoint_allowed_hosts:
+            errors.append(
+                "HERMES_AGENT_ENDPOINT_ALLOWED_HOSTS is required for production Agent dispatch"
+            )
         return errors
 
     def has_valid_internal_api_token(self) -> bool:

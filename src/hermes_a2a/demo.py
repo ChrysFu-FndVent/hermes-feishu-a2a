@@ -18,6 +18,7 @@ from pydantic import SecretStr
 from .api import create_app
 from .config import Settings
 from .coordinator import Coordinator
+from .models import AgentRegistration
 from .store import Store
 from .transport import close_transport
 
@@ -98,36 +99,23 @@ async def _run_demo_client(
     client: httpx.AsyncClient,
     *,
     timeout_seconds: float,
-    endpoints: dict[str, str] | None = None,
+    reviewer_endpoint: str,
 ) -> dict[str, Any]:
     headers = {"X-Hermes-Token": DEMO_TOKEN}
     health = await client.get("/healthz")
     health.raise_for_status()
 
-    if endpoints is not None:
-        registrations = {
-            "researcher": {
-                "id": "researcher",
-                "display_name": "Demo Research Agent",
-                "role": "synthetic evidence collection",
-                "capabilities": ["research"],
-                "transport": "http",
-                "endpoint": endpoints["researcher"],
-                "permissions": ["task:execute", "result:write"],
-            },
-            "reviewer": {
-                "id": "reviewer",
-                "display_name": "Demo Review Agent",
-                "role": "synthetic acceptance review",
-                "capabilities": ["review"],
-                "transport": "http",
-                "endpoint": endpoints["reviewer"],
-                "permissions": ["task:execute", "result:write"],
-            },
-        }
-        for registration in registrations.values():
-            response = await client.post("/agents", headers=headers, json=registration)
-            response.raise_for_status()
+    reviewer_registration = {
+        "id": "reviewer",
+        "display_name": "Demo Review Agent",
+        "role": "synthetic acceptance review",
+        "capabilities": ["review"],
+        "transport": "http",
+        "endpoint": reviewer_endpoint,
+        "permissions": ["task:execute", "result:write"],
+    }
+    response = await client.post("/agents", headers=headers, json=reviewer_registration)
+    response.raise_for_status()
 
     for agent_id in DEMO_AGENT_IDS:
         response = await client.post(
@@ -147,7 +135,7 @@ async def _run_demo_client(
                 "id": "collect",
                 "title": "Collect synthetic release facts",
                 "prompt": "Collect three synthetic facts for a release-readiness brief.",
-                "agent_id": "researcher",
+                "selector": {"required_capabilities": ["research"]},
             },
             {
                 "id": "review",
@@ -173,6 +161,15 @@ async def _run_demo_client(
         if run["state"] in {"succeeded", "failed"}:
             if run["state"] != "succeeded":
                 raise DemoError(f"demonstration failed: {json.dumps(run, ensure_ascii=False)}")
+            reviewer_registration["display_name"] = "Updated Demo Review Agent"
+            updated = await client.put(
+                "/agents/reviewer", headers=headers, json=reviewer_registration
+            )
+            updated.raise_for_status()
+            deleted = await client.delete("/agents/reviewer", headers=headers)
+            deleted.raise_for_status()
+            history = await client.get("/agents/reviewer/events", headers=headers)
+            history.raise_for_status()
             return {
                 "demo": "hermes-feishu-a2a",
                 "state": run["state"],
@@ -184,8 +181,14 @@ async def _run_demo_client(
                         "state": result["state"],
                         "agent_id": result["agent_id"],
                         "output": result["output"],
+                        "route_decision": result["route_decision"],
                     }
                     for task_id, result in run["task_results"].items()
+                },
+                "registry_lifecycle": {
+                    "agent_id": "reviewer",
+                    "revisions": [1, updated.json()["revision"]],
+                    "actions": [event["action"] for event in history.json()],
                 },
             }
         await asyncio.sleep(0.05)
@@ -210,13 +213,25 @@ async def run_local_demo(timeout_seconds: float = 20) -> dict[str, Any]:
             feishu_file_intake_agent_id="",
         )
         coordinator = Coordinator(settings, store=Store(database_url))
+        coordinator.register_declarative(
+            AgentRegistration(
+                id="researcher",
+                display_name="Demo Research Agent",
+                role="synthetic evidence collection",
+                capabilities=["research"],
+                endpoint=endpoints["researcher"],
+                permissions=["task:execute", "result:write"],
+            )
+        )
         app = create_app(settings=settings, coordinator=coordinator)
         try:
             async with httpx.AsyncClient(
                 transport=httpx.ASGITransport(app=app), base_url="http://local-demo"
             ) as client:
                 result = await _run_demo_client(
-                    client, timeout_seconds=timeout_seconds, endpoints=endpoints
+                    client,
+                    timeout_seconds=timeout_seconds,
+                    reviewer_endpoint=endpoints["reviewer"],
                 )
                 result["mode"] = "local"
                 return result
@@ -234,6 +249,10 @@ async def run_remote_demo(
     if token != DEMO_TOKEN:
         raise DemoError("remote demo token must match the bundled Compose demonstration token")
     async with httpx.AsyncClient(base_url=base_url.rstrip("/"), timeout=5) as client:
-        result = await _run_demo_client(client, timeout_seconds=timeout_seconds)
+        result = await _run_demo_client(
+            client,
+            timeout_seconds=timeout_seconds,
+            reviewer_endpoint="http://reviewer:9002/execute",
+        )
         result["mode"] = "compose"
         return result

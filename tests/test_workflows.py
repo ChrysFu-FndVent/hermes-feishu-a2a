@@ -7,11 +7,13 @@ import pytest
 
 from hermes_a2a.models import (
     AgentRegistration,
+    AgentSelector,
     AgentStatus,
     TaskSpec,
     WorkflowDefinition,
     WorkflowRun,
 )
+from hermes_a2a.registry import AgentRegistry
 from hermes_a2a.store import Store
 from hermes_a2a.workflows import WorkflowEngine
 
@@ -64,6 +66,17 @@ def register(store: Store, agent_id: str = "worker") -> None:
         )
     )
     store.agents[agent_id].status = AgentStatus.online
+
+
+def test_task_rejects_ambiguous_explicit_and_selector_assignment() -> None:
+    with pytest.raises(ValueError, match="either agent_id or selector"):
+        TaskSpec(
+            id="ambiguous",
+            title="Ambiguous",
+            prompt="Ambiguous",
+            agent_id="worker",
+            selector=AgentSelector(required_capabilities=["testing"]),
+        )
 
 
 @pytest.mark.asyncio
@@ -140,3 +153,81 @@ async def test_retry_recovers_and_marks_agent_online(tmp_path: Path) -> None:
     assert result.state == "succeeded"
     assert result.task_results["retry-task"].attempts == 2
     assert store.get_agent("worker").status == AgentStatus.online
+
+
+@pytest.mark.asyncio
+async def test_task_selector_routes_and_persists_decision(tmp_path: Path) -> None:
+    store = make_store(tmp_path)
+    registry = AgentRegistry(store)
+    registry.register_runtime(
+        AgentRegistration(
+            id="engineer",
+            display_name="Engineer",
+            role="implementation",
+            capabilities=["coding", "testing"],
+            endpoint="https://engineer.internal/execute",
+        )
+    )
+    store.set_agent_status("engineer", AgentStatus.online)
+    transport = FakeTransport()
+    engine = WorkflowEngine(store, transport, registry=registry)
+    workflow = WorkflowDefinition(
+        id="routed",
+        name="routed",
+        tasks=[
+            TaskSpec(
+                id="implement",
+                title="Implement",
+                prompt="Implement the change",
+                selector=AgentSelector(required_capabilities=["coding"]),
+            )
+        ],
+    )
+
+    result = await engine.run(workflow, WorkflowRun(workflow_id=workflow.id))
+
+    task_result = result.task_results["implement"]
+    assert result.state == "succeeded"
+    assert task_result.agent_id == "engineer"
+    assert task_result.route_decision is not None
+    assert task_result.route_decision.selected_agent_id == "engineer"
+    assert transport.calls == ["implement"]
+
+
+@pytest.mark.asyncio
+async def test_dispatch_rechecks_endpoint_policy_for_persisted_agents(tmp_path: Path) -> None:
+    store = make_store(tmp_path)
+    permissive_registry = AgentRegistry(store)
+    permissive_registry.register_runtime(
+        AgentRegistration(
+            id="legacy-http",
+            display_name="Legacy HTTP",
+            role="legacy",
+            endpoint="http://legacy.internal/execute",
+        )
+    )
+    store.set_agent_status("legacy-http", AgentStatus.online)
+    transport = FakeTransport()
+    engine = WorkflowEngine(
+        store,
+        transport,
+        registry=AgentRegistry(store, endpoint_require_https=True),
+    )
+    workflow = WorkflowDefinition(
+        id="endpoint-recheck",
+        name="endpoint recheck",
+        tasks=[
+            TaskSpec(
+                id="blocked",
+                title="Blocked",
+                prompt="Do not dispatch",
+                agent_id="legacy-http",
+            )
+        ],
+    )
+
+    result = await engine.run(workflow, WorkflowRun(workflow_id=workflow.id))
+
+    assert result.state == "failed"
+    assert result.task_results["blocked"].error == "HTTP Agent endpoints must use HTTPS"
+    assert transport.calls == []

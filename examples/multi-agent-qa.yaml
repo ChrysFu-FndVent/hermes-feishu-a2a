@@ -3,7 +3,8 @@ mode: serial
 tasks:
   - id: plan
     title: Plan answer
-    agent_id: researcher
+    selector:
+      required_capabilities: [research]
     prompt: Clarify the question, acceptance criteria and required evidence.
   - id: research
     title: Research

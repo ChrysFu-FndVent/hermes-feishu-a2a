@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0 - 2026-08-24
+
+- Added declarative and runtime Agent registration ownership with revisions, timestamps,
+  authenticated CRUD, lifecycle audit events and desired-state reconciliation.
+- Added deterministic capability, permission, transport and metadata routing with per-candidate
+  explanations and persisted route decisions.
+- Added optional Agent endpoint host allowlisting, HTTPS enforcement and unsafe URL rejection.
+- Added non-destructive `init`, offline/connected `doctor` and JSON configuration validation.
+- Extended the zero-credential CLI and Compose demonstrations to prove capability routing and the
+  runtime registry lifecycle.
+
 ## 0.3.0 - 2026-08-04
 
 - Added a deterministic `hermes-a2a demo` command that runs a real local HTTP Agent workflow with

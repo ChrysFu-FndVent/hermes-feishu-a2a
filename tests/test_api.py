@@ -67,6 +67,53 @@ async def test_health_and_protected_agent_registration(client: httpx.AsyncClient
 
 
 @pytest.mark.asyncio
+async def test_authenticated_agent_crud_history_and_route_preview(
+    client: httpx.AsyncClient,
+) -> None:
+    headers = {"X-Hermes-Token": TEST_API_TOKEN}
+    payload = {
+        "id": "router-worker",
+        "display_name": "Router Worker",
+        "role": "research",
+        "capabilities": ["research"],
+        "endpoint": "https://router.internal/execute",
+    }
+    created = await client.post("/agents", headers=headers, json=payload)
+    fetched = await client.get("/agents/router-worker", headers=headers)
+    payload["display_name"] = "Updated Router Worker"
+    payload["capabilities"] = ["research", "writing"]
+    updated = await client.put("/agents/router-worker", headers=headers, json=payload)
+    stale = await client.put(
+        "/agents/router-worker",
+        headers={**headers, "If-Match": '"1"'},
+        json=payload,
+    )
+    await client.post(
+        "/agents/router-worker/heartbeat",
+        headers=headers,
+        json={"status": "online", "load": 0.25},
+    )
+    routed = await client.post(
+        "/agents/resolve",
+        headers=headers,
+        json={"required_capabilities": ["writing"]},
+    )
+    history = await client.get("/agents/router-worker/events", headers=headers)
+    deleted = await client.delete("/agents/router-worker", headers=headers)
+    missing = await client.get("/agents/router-worker", headers=headers)
+
+    assert created.status_code == 200
+    assert fetched.json()["revision"] == 1
+    assert updated.json()["display_name"] == "Updated Router Worker"
+    assert updated.json()["revision"] == 2
+    assert stale.status_code == 409
+    assert routed.json()["selected_agent_id"] == "router-worker"
+    assert [event["action"] for event in history.json()] == ["registered", "updated"]
+    assert deleted.status_code == 204
+    assert missing.status_code == 404
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "configured_token",
     ["", "replace-with-a-long-random-token"],

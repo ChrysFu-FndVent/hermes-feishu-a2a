@@ -6,7 +6,7 @@ from pathlib import Path
 from threading import RLock
 from time import time
 
-from .models import AgentRecord, AgentStatus, WorkflowDefinition, WorkflowRun
+from .models import AgentRecord, AgentRegistryEvent, AgentStatus, WorkflowDefinition, WorkflowRun
 
 
 class Store:
@@ -18,6 +18,7 @@ class Store:
         self.workflows: dict[str, WorkflowDefinition] = {}
         self.runs: dict[str, WorkflowRun] = {}
         self.events: set[str] = set()
+        self.agent_registry_events: list[AgentRegistryEvent] = []
         self._db: sqlite3.Connection | None = None
         if database_url.startswith("sqlite:///"):
             path = Path(database_url.removeprefix("sqlite:///"))
@@ -35,6 +36,10 @@ class Store:
             self._db.execute(
                 "CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, received_at REAL NOT NULL)"
             )
+            self._db.execute(
+                "CREATE TABLE IF NOT EXISTS agent_registry_events "
+                "(id TEXT PRIMARY KEY, agent_id TEXT NOT NULL, payload TEXT NOT NULL)"
+            )
             self._db.commit()
             self._load()
 
@@ -49,6 +54,28 @@ class Store:
 
     def list_agents(self) -> list[AgentRecord]:
         return list(self.agents.values())
+
+    def delete_agent(self, agent_id: str) -> AgentRecord:
+        with self._lock:
+            agent = self.agents.pop(agent_id)
+            if self._db is not None:
+                self._db.execute("DELETE FROM agents WHERE id = ?", (agent_id,))
+                self._db.commit()
+            return agent
+
+    def save_agent_registry_event(self, event: AgentRegistryEvent) -> AgentRegistryEvent:
+        with self._lock:
+            self.agent_registry_events.append(event)
+            if self._db is not None:
+                self._db.execute(
+                    "INSERT INTO agent_registry_events (id, agent_id, payload) VALUES (?, ?, ?)",
+                    (event.id, event.agent_id, event.model_dump_json()),
+                )
+                self._db.commit()
+            return event
+
+    def list_agent_registry_events(self, agent_id: str) -> list[AgentRegistryEvent]:
+        return [event for event in self.agent_registry_events if event.agent_id == agent_id]
 
     def set_agent_status(
         self, agent_id: str, status: AgentStatus, error: str | None = None
@@ -118,6 +145,15 @@ class Store:
             for key, payload in self._db.execute("SELECT id, payload FROM runs"):
                 try:
                     self.runs[key] = WorkflowRun.model_validate_json(payload)
+                except (ValueError, JSONDecodeError):
+                    continue
+            for (payload,) in self._db.execute(
+                "SELECT payload FROM agent_registry_events ORDER BY rowid"
+            ):
+                try:
+                    self.agent_registry_events.append(
+                        AgentRegistryEvent.model_validate_json(payload)
+                    )
                 except (ValueError, JSONDecodeError):
                     continue
 

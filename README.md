@@ -30,10 +30,11 @@ Agents through HTTP or Feishu/Lark.
 [![Release](https://img.shields.io/github/v/release/ChrysFu-FndVent/hermes-feishu-a2a)](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F4C430.svg)](LICENSE)
 
-Hermes stores Agent identities and workflow state, enforces dependency barriers,
-dispatches ready tasks, applies timeouts and retries, and exposes run results through
-an authenticated API. Feishu webhook events are verified against the configured
-signature, chat and sender allow-lists.
+Hermes stores declarative and runtime Agent registrations, matches task constraints to
+live capabilities with an inspectable route decision, enforces dependency barriers,
+applies timeouts and retries, and exposes traceable results through an authenticated API.
+Feishu webhook events are verified against the configured signature, chat and sender
+allow-lists.
 
 Hermes does not include an LLM planner or an Agent runtime. A caller must submit a
 workflow definition, and every Agent must expose either an HTTP adapter or a Feishu
@@ -58,7 +59,11 @@ when configured, authorized file messages are routed to one registered intake Ag
 
 ## Zero-credential demo
 
-The first run needs no Feishu tenant, app credentials, model API, or real business data. The demo starts a temporary Hermes environment and two loopback HTTP Agents, runs a `researcher -> reviewer` workflow, prints every task state and synthetic result, then removes the temporary state.
+The first run needs no Feishu tenant, app credentials, model API, or real business data.
+The demo starts a temporary Hermes environment and two loopback HTTP Agents, loads the
+researcher declaratively, registers the reviewer at runtime, routes the first task by
+capability, and proves the reviewer's update/delete audit lifecycle before removing all
+temporary state.
 
 macOS or Linux:
 
@@ -137,6 +142,21 @@ script execution is restricted.
 
 ### 2. Configure
 
+To create a new standalone project with a generated internal token, an empty declarative
+registry, a capability-routing workflow and a release-pinned Compose file:
+
+```bash
+hermes-a2a init --directory my-hermes
+cd my-hermes
+hermes-a2a validate-config --path config/agents.yaml --json
+hermes-a2a doctor --offline --config config/agents.yaml --data-dir data
+```
+
+`init` preserves every existing target file unless `--force` is supplied. It never asks
+for or generates Feishu or model-provider credentials.
+
+For this source checkout, copy the production examples:
+
 macOS or Linux:
 
 ```bash
@@ -164,6 +184,8 @@ Edit both files and replace every placeholder. The required production settings 
 | `HERMES_FEISHU_OWNER_OPEN_IDS` | Comma-separated `ou_...` human owner IDs |
 | `HERMES_FEISHU_FILE_INTAKE_AGENT_ID` | Registered Agent that processes authorized Feishu file messages |
 | `HERMES_AGENTS_CONFIG_PATH` | Agent registry file, normally `config/agents.yaml` |
+| `HERMES_AGENT_ENDPOINT_ALLOWED_HOSTS` | Comma-separated positive host globs for HTTP Agent dispatch; required in production |
+| `HERMES_AGENT_ENDPOINT_REQUIRE_HTTPS` | Reject non-HTTPS Agent endpoints when enabled |
 
 `HERMES_PORT` controls native Python startup. `HERMES_PUBLISHED_PORT` controls the
 host port used by Docker Compose; the container always listens on port 8080.
@@ -185,14 +207,25 @@ Validate the complete configuration:
 macOS or Linux:
 
 ```bash
-.venv/bin/hermes-a2a validate-config --path config/agents.yaml
+.venv/bin/hermes-a2a validate-config --path config/agents.yaml --production --json
 ```
 
 Windows PowerShell:
 
 ```powershell
-.venv\Scripts\hermes-a2a.exe validate-config --path config\agents.yaml
+.venv\Scripts\hermes-a2a.exe validate-config --path config\agents.yaml --production --json
 ```
+
+Run read-only local and connected diagnostics:
+
+```bash
+HERMES_INTERNAL_API_TOKEN="$HERMES_INTERNAL_API_TOKEN" \
+  .venv/bin/hermes-a2a doctor --config config/agents.yaml \
+  --data-dir data --base-url http://127.0.0.1:8080
+```
+
+Use `doctor --offline` to skip every network probe. Doctor always emits named
+`pass`/`warn`/`fail`/`skip` checks and never prints token values.
 
 ### 3. Run
 
@@ -245,8 +278,32 @@ docker compose down --volumes
 
 ## Agent contract
 
-Agents are preloaded from `config/agents.yaml` with `offline` status. An adapter must
-send a heartbeat before Hermes dispatches work to it.
+Agents can be owned by declarative `config/agents.yaml` desired state or by the
+authenticated runtime control interface. Runtime records survive restarts; declarative
+records are reconciled on startup, and runtime endpoints cannot mutate or delete them.
+Every lifecycle change has a revision, timestamp and append-only audit event.
+
+Register a runtime Agent, preview routing, and perform a concurrency-safe update:
+
+```bash
+curl -X POST http://127.0.0.1:8080/agents \
+  -H "X-Hermes-Token: $HERMES_INTERNAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"id":"writer","display_name":"Writer","role":"writing","capabilities":["writing"],"endpoint":"https://writer.internal/execute"}'
+
+curl -X POST http://127.0.0.1:8080/agents/resolve \
+  -H "X-Hermes-Token: $HERMES_INTERNAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"required_capabilities":["writing"]}'
+```
+
+`PUT /agents/{id}` accepts the current revision in `If-Match`; a stale revision returns
+`409`. `GET /agents/{id}/events` returns lifecycle actions without copying endpoint or
+metadata values into the audit payload. HTTP endpoints reject URL credentials and
+fragments, then apply the configured HTTPS and positive-host policy.
+
+New Agents start `offline`. An adapter must send a heartbeat before Hermes routes or
+dispatches work to it.
 
 ```json
 {
@@ -320,6 +377,26 @@ All four endpoints require `X-Hermes-Token`. The interactive API at `/docs` is t
 most portable way to perform the first run on macOS, Windows and Linux. Example
 workflow definitions are available in [`examples/`](examples/).
 
+A task may keep an explicit `agent_id` or use a deterministic selector:
+
+```yaml
+tasks:
+  - id: research
+    title: Gather evidence
+    selector:
+      required_capabilities: [research]
+      required_permissions: [task:execute]
+      transport: http
+      metadata_equals:
+        region: cn
+    prompt: Gather primary-source evidence.
+```
+
+Selectors require exact capability, permission, transport and scalar metadata matches.
+Offline and busy Agents are excluded; degraded Agents require explicit opt-in. Eligible
+Agents are ordered by health, reported load, failure count and stable Agent ID. The full
+candidate list and every inclusion/exclusion reason are persisted with the task result.
+
 ![Task lifecycle](docs/assets/task-lifecycle.svg)
 
 ## Feishu setup
@@ -372,7 +449,10 @@ scope and callback checklist.
 | `GET /healthz` | Network restriction | Process health |
 | `GET /readyz` | Network restriction | Production configuration readiness |
 | `GET /metrics` | Network restriction | Agent and workflow counters |
-| `GET/POST /agents` | `X-Hermes-Token` | List or register Agents |
+| `GET/POST /agents` | `X-Hermes-Token` | List or register runtime Agents |
+| `GET/PUT/DELETE /agents/{id}` | `X-Hermes-Token` | Inspect, update or remove a runtime Agent |
+| `GET /agents/{id}/events` | `X-Hermes-Token` | Inspect lifecycle audit events |
+| `POST /agents/resolve` | `X-Hermes-Token` | Preview an explainable route decision |
 | `POST /agents/{id}/heartbeat` | `X-Hermes-Token` | Update Agent health |
 | `POST /workflows` | `X-Hermes-Token` | Store a workflow definition |
 | `POST /workflows/{id}/run` | `X-Hermes-Token` | Start execution |
@@ -392,7 +472,7 @@ Published release assets include a platform-independent wheel and source archive
 Published container tags support `linux/amd64` and `linux/arm64`:
 
 ```bash
-docker pull ghcr.io/chrysfu-fndvent/hermes-feishu-a2a:latest
+docker pull ghcr.io/chrysfu-fndvent/hermes-feishu-a2a:0.4.0
 ```
 
 See [deployment](docs/deployment.md), [best practices](docs/best-practices.md), and
@@ -434,7 +514,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). This project is released under the
 [![Release](https://img.shields.io/github/v/release/ChrysFu-FndVent/hermes-feishu-a2a)](https://github.com/ChrysFu-FndVent/hermes-feishu-a2a/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F4C430.svg)](LICENSE)
 
-Hermes 存储 Agent 身份与工作流状态、执行依赖屏障、分派就绪任务、应用超时与重试，并通过经过身份验证的 API 提供运行结果。飞书 webhook 事件会根据已配置的签名、会话白名单和发送者白名单进行验证。
+Hermes 存储声明式和运行时 Agent 注册信息，通过可检查的路由决策将任务约束匹配到在线能力，执行依赖屏障、超时和重试，并通过经过身份验证的 API 提供可追溯结果。飞书 webhook 事件会根据已配置的签名、会话白名单和发送者白名单进行验证。
 
 Hermes 不包含 LLM 规划器或 Agent 运行时。调用方必须提交工作流定义，而每个 Agent 都必须提供 HTTP 适配器或飞书适配器，将结果返回 Hermes。飞书文件接收是一个确定性的例外：配置后，获得授权的文件消息会被路由到一个已注册的接收 Agent。
 
@@ -456,7 +536,7 @@ Hermes 不包含 LLM 规划器或 Agent 运行时。调用方必须提交工作�
 
 ## 零凭据演示
 
-首次体验不需要飞书租户、应用凭据、模型 API 或真实业务数据。演示会在本机启动临时 Hermes 环境和两个 loopback HTTP Agent，运行 `researcher -> reviewer` 工作流，打印每个任务的状态与合成结果，然后清理临时状态。
+首次体验不需要飞书租户、应用凭据、模型 API 或真实业务数据。演示会在本机启动临时 Hermes 环境和两个 loopback HTTP Agent，以声明方式加载 Researcher、通过运行时 API 注册 Reviewer、按能力路由第一项任务，并验证 Reviewer 的更新、删除和审计生命周期，最后清理全部临时状态。
 
 macOS 或 Linux：
 
@@ -533,6 +613,19 @@ py -3.11 -m venv .venv
 
 ### 2. 配置
 
+如需创建独立项目，可一次生成内部令牌、空声明式注册表、能力路由示例和固定正式版本的 Compose 文件：
+
+```bash
+hermes-a2a init --directory my-hermes
+cd my-hermes
+hermes-a2a validate-config --path config/agents.yaml --json
+hermes-a2a doctor --offline --config config/agents.yaml --data-dir data
+```
+
+除非传入 `--force`，`init` 会保留所有已存在的目标文件。该命令不会询问或生成飞书、模型提供商凭据。
+
+在本源码目录中，可复制生产配置示例：
+
 macOS 或 Linux：
 
 ```bash
@@ -560,6 +653,8 @@ Copy-Item config\agents.example.yaml config\agents.yaml
 | `HERMES_FEISHU_OWNER_OPEN_IDS` | 以逗号分隔的 `ou_...` 人类所有者 ID |
 | `HERMES_FEISHU_FILE_INTAKE_AGENT_ID` | 处理获授权飞书文件消息的已注册 Agent |
 | `HERMES_AGENTS_CONFIG_PATH` | Agent 注册表文件，通常为 `config/agents.yaml` |
+| `HERMES_AGENT_ENDPOINT_ALLOWED_HOSTS` | HTTP Agent 分派允许的逗号分隔主机 glob；生产环境必填 |
+| `HERMES_AGENT_ENDPOINT_REQUIRE_HTTPS` | 启用后拒绝非 HTTPS Agent 端点 |
 
 `HERMES_PORT` 控制原生 Python 启动端口。`HERMES_PUBLISHED_PORT` 控制 Docker Compose 使用的主机端口；容器始终监听 8080 端口。
 
@@ -578,14 +673,24 @@ python3 -c "import secrets; print(secrets.token_urlsafe(48))"
 macOS 或 Linux：
 
 ```bash
-.venv/bin/hermes-a2a validate-config --path config/agents.yaml
+.venv/bin/hermes-a2a validate-config --path config/agents.yaml --production --json
 ```
 
 Windows PowerShell：
 
 ```powershell
-.venv\Scripts\hermes-a2a.exe validate-config --path config\agents.yaml
+.venv\Scripts\hermes-a2a.exe validate-config --path config\agents.yaml --production --json
 ```
+
+执行只读的本地与连接诊断：
+
+```bash
+HERMES_INTERNAL_API_TOKEN="$HERMES_INTERNAL_API_TOKEN" \
+  .venv/bin/hermes-a2a doctor --config config/agents.yaml \
+  --data-dir data --base-url http://127.0.0.1:8080
+```
+
+使用 `doctor --offline` 跳过全部网络探测。Doctor 始终输出具名的 `pass`/`warn`/`fail`/`skip` 检查，且不会打印令牌值。
 
 ### 3. 运行
 
@@ -635,7 +740,25 @@ docker compose down --volumes
 
 ## Agent 契约
 
-Agent 从 `config/agents.yaml` 预加载，初始状态为 `offline`。适配器必须先发送心跳，Hermes 才会向其分派工作。
+Agent 可以由声明式 `config/agents.yaml` 期望状态管理，也可以由经过身份验证的运行时控制接口管理。运行时记录会跨重启保留；声明式记录在启动时协调，运行时端点不能修改或删除它们。每次生命周期变更都有 revision、时间戳和只追加审计事件。
+
+注册运行时 Agent、预览路由并执行具备并发保护的更新：
+
+```bash
+curl -X POST http://127.0.0.1:8080/agents \
+  -H "X-Hermes-Token: $HERMES_INTERNAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"id":"writer","display_name":"Writer","role":"writing","capabilities":["writing"],"endpoint":"https://writer.internal/execute"}'
+
+curl -X POST http://127.0.0.1:8080/agents/resolve \
+  -H "X-Hermes-Token: $HERMES_INTERNAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"required_capabilities":["writing"]}'
+```
+
+`PUT /agents/{id}` 可通过 `If-Match` 携带当前 revision；陈旧 revision 返回 `409`。`GET /agents/{id}/events` 返回生命周期操作，但不会把 endpoint 或 metadata 值复制进审计负载。HTTP endpoint 会拒绝 URL 凭据和 fragment，再应用已配置的 HTTPS 与正向主机策略。
+
+新 Agent 初始为 `offline`。适配器必须先发送心跳，Hermes 才会路由或分派工作。
 
 ```json
 {
@@ -698,6 +821,23 @@ Hermes 向已配置的 `open_id` 发送原生 `at` 帖子，并等待 Agent 在�
 
 四个端点都需要 `X-Hermes-Token`。`/docs` 的交互式 API 是在 macOS、Windows 和 Linux 上执行首次运行最便携的方式。[`examples/`](examples/) 中提供了工作流定义示例。
 
+任务可以继续指定明确的 `agent_id`，也可以使用确定性 selector：
+
+```yaml
+tasks:
+  - id: research
+    title: Gather evidence
+    selector:
+      required_capabilities: [research]
+      required_permissions: [task:execute]
+      transport: http
+      metadata_equals:
+        region: cn
+    prompt: Gather primary-source evidence.
+```
+
+Selector 要求能力、权限、传输和标量 metadata 精确匹配。离线和忙碌 Agent 会被排除；降级 Agent 需要显式允许。符合条件的 Agent 按健康状态、已报告负载、失败次数和稳定 Agent ID 排序。完整候选列表以及每项入选/排除原因都会随任务结果持久化。
+
 ![任务生命周期](docs/assets/task-lifecycle.svg)
 
 ## 飞书配置
@@ -738,7 +878,10 @@ Webhook 在解析 JSON 前对原始请求体进行身份验证，然后检查验
 | `GET /healthz` | 网络限制 | 进程健康状态 |
 | `GET /readyz` | 网络限制 | 生产配置就绪状态 |
 | `GET /metrics` | 网络限制 | Agent 和工作流计数器 |
-| `GET/POST /agents` | `X-Hermes-Token` | 列出或注册 Agent |
+| `GET/POST /agents` | `X-Hermes-Token` | 列出或注册运行时 Agent |
+| `GET/PUT/DELETE /agents/{id}` | `X-Hermes-Token` | 检查、更新或删除运行时 Agent |
+| `GET /agents/{id}/events` | `X-Hermes-Token` | 检查生命周期审计事件 |
+| `POST /agents/resolve` | `X-Hermes-Token` | 预览可解释路由决策 |
 | `POST /agents/{id}/heartbeat` | `X-Hermes-Token` | 更新 Agent 健康状态 |
 | `POST /workflows` | `X-Hermes-Token` | 存储工作流定义 |
 | `POST /workflows/{id}/run` | `X-Hermes-Token` | 启动执行 |
@@ -757,7 +900,7 @@ Webhook 在解析 JSON 前对原始请求体进行身份验证，然后检查验
 发布资产包括与平台无关的 wheel 和源代码归档。发布的容器标签支持 `linux/amd64` 和 `linux/arm64`：
 
 ```bash
-docker pull ghcr.io/chrysfu-fndvent/hermes-feishu-a2a:latest
+docker pull ghcr.io/chrysfu-fndvent/hermes-feishu-a2a:0.4.0
 ```
 
 运行细节见[部署](docs/deployment.md)、[最佳实践](docs/best-practices.md)和[故障排除](docs/troubleshooting.md)。

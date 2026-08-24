@@ -9,12 +9,26 @@ environment.
 
 ## Configuration validation fails
 
-Run `hermes-a2a validate-config --path config/agents.yaml` and address every reported
-item. Placeholder values such as `replace-me`, `cli_xxx`, `oc_xxx` and `ou_xxx` are
-rejected for production configuration.
+Run `hermes-a2a validate-config --path config/agents.yaml --production --json` and
+address every reported item. Placeholder values such as `replace-me`, `cli_xxx`,
+`oc_xxx` and `ou_xxx` are rejected for production configuration. Production also
+requires a positive `HERMES_AGENT_ENDPOINT_ALLOWED_HOSTS` policy.
 
 HTTP Agents require an `endpoint`. Feishu Agents require both `open_id` and
 `metadata.chat_id`.
+
+## Runtime Agent update or deletion returns 409
+
+An Agent owned by `config/agents.yaml` must be changed or removed in that file; the
+runtime API cannot override declarative desired state. For runtime-owned Agents, refresh
+`GET /agents/{id}` and retry the update with its current revision in `If-Match` when a
+concurrent writer made the previous revision stale.
+
+## No Agent matches a selector
+
+Send the selector to `POST /agents/resolve` and inspect every candidate reason. Common
+causes are a missing exact capability or permission, `offline`/`busy` status, disallowed
+degraded status, transport mismatch, metadata mismatch, or explicit exclusion.
 
 ## `/readyz` returns 503
 

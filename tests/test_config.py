@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from hermes_a2a.config import Settings, load_agent_config
+from hermes_a2a.models import AgentRegistration
 
 
 def test_production_settings_reject_placeholders() -> None:
@@ -19,7 +20,7 @@ def test_production_settings_reject_placeholders() -> None:
         feishu_owner_open_ids=["ou_xxx"],
     ).validate_for_production()
 
-    assert len(errors) == 7
+    assert len(errors) == 8
 
 
 def test_agent_config_rejects_placeholder_targets(tmp_path: Path) -> None:
@@ -67,3 +68,34 @@ def test_agent_config_rejects_duplicate_ids(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="agent ids must be unique"):
         load_agent_config(path)
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "https://user:password@agent.internal/execute",
+        "https://agent.internal/execute#secret-fragment",
+    ],
+)
+def test_agent_registration_rejects_unsafe_endpoint_parts(endpoint: str) -> None:
+    with pytest.raises(ValueError, match="credentials or fragments"):
+        AgentRegistration(
+            id="unsafe",
+            display_name="Unsafe",
+            role="test",
+            endpoint=endpoint,
+        )
+
+
+def test_agent_capabilities_and_permissions_are_normalized() -> None:
+    registration = AgentRegistration(
+        id="normalized",
+        display_name="Normalized",
+        role="test",
+        capabilities=[" Research ", "research", "WRITING"],
+        permissions=[" Task:Execute ", "task:execute"],
+        endpoint="https://agent.internal/execute",
+    )
+
+    assert registration.capabilities == ["research", "writing"]
+    assert registration.permissions == ["task:execute"]

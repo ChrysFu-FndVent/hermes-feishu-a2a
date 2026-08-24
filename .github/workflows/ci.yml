@@ -52,6 +52,11 @@ jobs:
         run: python -m pip install --upgrade pip && python -m pip install -e '.[dev]'
       - name: Smoke test CLI
         run: python -m hermes_a2a --help
+      - name: Smoke test project lifecycle
+        run: |
+          python -m hermes_a2a init --directory .hermes-smoke
+          python -m hermes_a2a validate-config --path .hermes-smoke/config/agents.yaml --json
+          python -m hermes_a2a doctor --offline --config .hermes-smoke/config/agents.yaml --data-dir .hermes-smoke/data
       - name: Run zero-credential CLI demo
         run: python -m hermes_a2a demo --timeout-seconds 10
       - name: Run tests
