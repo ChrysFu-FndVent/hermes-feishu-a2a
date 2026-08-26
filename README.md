@@ -66,14 +66,14 @@ Linux. It is not a double-clickable application: install Python 3.11 or newer, t
 the commands below in a terminal.
 
 Open the [latest GitHub Release](https://github.com/ChrysFu/hermes-feishu-a2a/releases/latest)
-and download these files. Release `v0.4.1` is used in the examples; when a newer release
+and download these files. Release `v0.4.2` is used in the examples; when a newer release
 exists, use its version consistently in the filenames and commands.
 
 | Release file | Use |
 | --- | --- |
-| `hermes_feishu_a2a-0.4.1-py3-none-any.whl` | Recommended installable package for all supported operating systems |
+| `hermes_feishu_a2a-0.4.2-py3-none-any.whl` | Recommended installable package for all supported operating systems |
 | `SHA256SUMS` | Checksums used to verify that downloads are intact |
-| `hermes_feishu_a2a-0.4.1.tar.gz` | Source archive for inspection or source builds; not required for a normal install |
+| `hermes_feishu_a2a-0.4.2.tar.gz` | Source archive for inspection or source builds; not required for a normal install |
 
 [![GitHub Release download files](docs/assets/readme/release-downloads.png)](https://github.com/ChrysFu/hermes-feishu-a2a/releases/latest)
 
@@ -85,7 +85,7 @@ macOS:
 
 ```bash
 cd ~/Downloads
-shasum -a 256 hermes_feishu_a2a-0.4.1-py3-none-any.whl
+shasum -a 256 hermes_feishu_a2a-0.4.2-py3-none-any.whl
 cat SHA256SUMS
 ```
 
@@ -93,7 +93,7 @@ Linux:
 
 ```bash
 cd ~/Downloads
-sha256sum hermes_feishu_a2a-0.4.1-py3-none-any.whl
+sha256sum hermes_feishu_a2a-0.4.2-py3-none-any.whl
 cat SHA256SUMS
 ```
 
@@ -101,7 +101,7 @@ Windows PowerShell:
 
 ```powershell
 Set-Location "$HOME\Downloads"
-(Get-FileHash .\hermes_feishu_a2a-0.4.1-py3-none-any.whl -Algorithm SHA256).Hash.ToLowerInvariant()
+(Get-FileHash .\hermes_feishu_a2a-0.4.2-py3-none-any.whl -Algorithm SHA256).Hash.ToLowerInvariant()
 Get-Content .\SHA256SUMS
 ```
 
@@ -114,7 +114,7 @@ mkdir -p ~/hermes-feishu-a2a
 cd ~/hermes-feishu-a2a
 python3 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install ~/Downloads/hermes_feishu_a2a-0.4.1-py3-none-any.whl
+.venv/bin/python -m pip install ~/Downloads/hermes_feishu_a2a-0.4.2-py3-none-any.whl
 .venv/bin/hermes-a2a --help
 ```
 
@@ -125,7 +125,7 @@ New-Item -ItemType Directory -Force "$HOME\hermes-feishu-a2a" | Out-Null
 Set-Location "$HOME\hermes-feishu-a2a"
 py -3.11 -m venv .venv
 .venv\Scripts\python.exe -m pip install --upgrade pip
-.venv\Scripts\python.exe -m pip install "$HOME\Downloads\hermes_feishu_a2a-0.4.1-py3-none-any.whl"
+.venv\Scripts\python.exe -m pip install "$HOME\Downloads\hermes_feishu_a2a-0.4.2-py3-none-any.whl"
 .venv\Scripts\hermes-a2a.exe --help
 ```
 
@@ -665,7 +665,7 @@ Published release assets include a platform-independent wheel and source archive
 Published container tags support `linux/amd64` and `linux/arm64`:
 
 ```bash
-docker pull ghcr.io/chrysfu/hermes-feishu-a2a:0.4.1
+docker pull ghcr.io/chrysfu/hermes-feishu-a2a:0.4.2
 ```
 
 See [deployment](docs/deployment.md), [best practices](docs/best-practices.md), and
@@ -735,14 +735,14 @@ Hermes 不包含 LLM 规划器或 Agent 运行时。调用方必须提交工作�
 桌面应用：请先安装 Python 3.11 或更高版本，再在终端中执行下面的命令。
 
 打开[最新 GitHub Release](https://github.com/ChrysFu/hermes-feishu-a2a/releases/latest)
-并下载下列文件。示例使用 `v0.4.1`；若已有更新版本，请在文件名和命令中统一使用
+并下载下列文件。示例使用 `v0.4.2`；若已有更新版本，请在文件名和命令中统一使用
 Release 页面显示的新版本号。
 
 | Release 文件 | 用途 |
 | --- | --- |
-| `hermes_feishu_a2a-0.4.1-py3-none-any.whl` | 所有受支持操作系统通用的推荐安装包 |
+| `hermes_feishu_a2a-0.4.2-py3-none-any.whl` | 所有受支持操作系统通用的推荐安装包 |
 | `SHA256SUMS` | 校验下载文件是否完整 |
-| `hermes_feishu_a2a-0.4.1.tar.gz` | 用于审查或从源码构建；常规安装不需要 |
+| `hermes_feishu_a2a-0.4.2.tar.gz` | 用于审查或从源码构建；常规安装不需要 |
 
 [![GitHub Release 下载文件](docs/assets/readme/release-downloads.png)](https://github.com/ChrysFu/hermes-feishu-a2a/releases/latest)
 
@@ -754,7 +754,7 @@ macOS：
 
 ```bash
 cd ~/Downloads
-shasum -a 256 hermes_feishu_a2a-0.4.1-py3-none-any.whl
+shasum -a 256 hermes_feishu_a2a-0.4.2-py3-none-any.whl
 cat SHA256SUMS
 ```
 
@@ -762,7 +762,7 @@ Linux：
 
 ```bash
 cd ~/Downloads
-sha256sum hermes_feishu_a2a-0.4.1-py3-none-any.whl
+sha256sum hermes_feishu_a2a-0.4.2-py3-none-any.whl
 cat SHA256SUMS
 ```
 
@@ -770,7 +770,7 @@ Windows PowerShell：
 
 ```powershell
 Set-Location "$HOME\Downloads"
-(Get-FileHash .\hermes_feishu_a2a-0.4.1-py3-none-any.whl -Algorithm SHA256).Hash.ToLowerInvariant()
+(Get-FileHash .\hermes_feishu_a2a-0.4.2-py3-none-any.whl -Algorithm SHA256).Hash.ToLowerInvariant()
 Get-Content .\SHA256SUMS
 ```
 
@@ -783,7 +783,7 @@ mkdir -p ~/hermes-feishu-a2a
 cd ~/hermes-feishu-a2a
 python3 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install ~/Downloads/hermes_feishu_a2a-0.4.1-py3-none-any.whl
+.venv/bin/python -m pip install ~/Downloads/hermes_feishu_a2a-0.4.2-py3-none-any.whl
 .venv/bin/hermes-a2a --help
 ```
 
@@ -794,7 +794,7 @@ New-Item -ItemType Directory -Force "$HOME\hermes-feishu-a2a" | Out-Null
 Set-Location "$HOME\hermes-feishu-a2a"
 py -3.11 -m venv .venv
 .venv\Scripts\python.exe -m pip install --upgrade pip
-.venv\Scripts\python.exe -m pip install "$HOME\Downloads\hermes_feishu_a2a-0.4.1-py3-none-any.whl"
+.venv\Scripts\python.exe -m pip install "$HOME\Downloads\hermes_feishu_a2a-0.4.2-py3-none-any.whl"
 .venv\Scripts\hermes-a2a.exe --help
 ```
 
@@ -1275,7 +1275,7 @@ Webhook 在解析 JSON 前对原始请求体进行身份验证，然后检查验
 发布资产包括与平台无关的 wheel 和源代码归档。发布的容器标签支持 `linux/amd64` 和 `linux/arm64`：
 
 ```bash
-docker pull ghcr.io/chrysfu/hermes-feishu-a2a:0.4.1
+docker pull ghcr.io/chrysfu/hermes-feishu-a2a:0.4.2
 ```
 
 运行细节见[部署](docs/deployment.md)、[最佳实践](docs/best-practices.md)和[故障排除](docs/troubleshooting.md)。
