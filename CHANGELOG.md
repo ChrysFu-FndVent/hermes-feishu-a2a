@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.2 - 2026-08-27
+
+- Added a bilingual, Release-first installation and deployment guide.
+- Combined Feishu configuration steps with redacted console screenshots.
+- Added real GitHub Releases and interactive API documentation screenshots.
+
 ## 0.4.1 - 2026-08-24
 
 - Updated canonical GitHub and GHCR coordinates after the repository owner migration and added a

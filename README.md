@@ -43,56 +43,166 @@ when configured, authorized file messages are routed to one registered intake Ag
 
 ## Table of contents
 
-- [Zero-credential demo](#en-zero-credential-demo)
+- [Install from GitHub Releases](#en-release-install)
 - [Supported platforms](#supported-platforms)
-- [Architecture](#architecture)
 - [Production quick start](#quick-start)
+- [Zero-credential demo](#en-zero-credential-demo)
+- [Architecture](#architecture)
 - [Docker](#docker)
 - [Agent contract](#agent-contract)
 - [Run a workflow](#run-a-workflow)
-- [Feishu setup](#feishu-setup)
+- [Feishu configuration guide](#feishu-configuration-guide)
 - [API reference](#api-reference)
 - [Production deployment](#production-deployment)
 - [Development](#development)
 
-<a id="en-zero-credential-demo"></a>
+<a id="en-release-install"></a>
 
-## Zero-credential demo
+## Install from GitHub Releases
 
-The first run needs no Feishu tenant, app credentials, model API, or real business data.
-The demo starts a temporary Hermes environment and two loopback HTTP Agents, loads the
-researcher declaratively, registers the reviewer at runtime, routes the first task by
-capability, and proves the reviewer's update/delete audit lifecycle before removing all
-temporary state.
+This is the recommended path for users who want to run Hermes without cloning the
+repository. The wheel installs the `hermes-a2a` command and works on Windows, macOS and
+Linux. It is not a double-clickable application: install Python 3.11 or newer, then run
+the commands below in a terminal.
 
-macOS or Linux:
+Open the [latest GitHub Release](https://github.com/ChrysFu/hermes-feishu-a2a/releases/latest)
+and download these files. Release `v0.4.2` is used in the examples; when a newer release
+exists, use its version consistently in the filenames and commands.
+
+| Release file | Use |
+| --- | --- |
+| `hermes_feishu_a2a-0.4.2-py3-none-any.whl` | Recommended installable package for all supported operating systems |
+| `SHA256SUMS` | Checksums used to verify that downloads are intact |
+| `hermes_feishu_a2a-0.4.2.tar.gz` | Source archive for inspection or source builds; not required for a normal install |
+
+[![GitHub Release download files](docs/assets/readme/release-downloads.png)](https://github.com/ChrysFu/hermes-feishu-a2a/releases/latest)
+
+### 1. Verify the download
+
+Compare the wheel hash printed by the command with the matching line in `SHA256SUMS`.
+
+macOS:
 
 ```bash
-git clone https://github.com/ChrysFu/hermes-feishu-a2a.git
-cd hermes-feishu-a2a
-python3 -m venv .venv
-.venv/bin/python -m pip install .
-.venv/bin/hermes-a2a demo
+cd ~/Downloads
+shasum -a 256 hermes_feishu_a2a-0.4.2-py3-none-any.whl
+cat SHA256SUMS
+```
+
+Linux:
+
+```bash
+cd ~/Downloads
+sha256sum hermes_feishu_a2a-0.4.2-py3-none-any.whl
+cat SHA256SUMS
 ```
 
 Windows PowerShell:
 
 ```powershell
-git clone https://github.com/ChrysFu/hermes-feishu-a2a.git
-Set-Location hermes-feishu-a2a
-py -3.11 -m venv .venv
-.venv\Scripts\python.exe -m pip install .
-.venv\Scripts\hermes-a2a.exe demo
+Set-Location "$HOME\Downloads"
+(Get-FileHash .\hermes_feishu_a2a-0.4.2-py3-none-any.whl -Algorithm SHA256).Hash.ToLowerInvariant()
+Get-Content .\SHA256SUMS
 ```
 
-Full container path:
+### 2. Install the wheel into an isolated directory
+
+macOS or Linux:
 
 ```bash
-docker compose -f docker-compose.demo.yml up --build --abort-on-container-exit --exit-code-from demo-runner
-docker compose -f docker-compose.demo.yml down --volumes
+mkdir -p ~/hermes-feishu-a2a
+cd ~/hermes-feishu-a2a
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install ~/Downloads/hermes_feishu_a2a-0.4.2-py3-none-any.whl
+.venv/bin/hermes-a2a --help
 ```
 
-Compose starts Hermes, two independent mock Agents, and a one-shot demo runner. Hermes binds only to the host loopback interface, and runtime traffic stays inside an isolated Compose network; the first image build still downloads Python dependencies. The fixed demo token is public and restricted to this isolated demonstration. Never use it in production.
+Windows PowerShell:
+
+```powershell
+New-Item -ItemType Directory -Force "$HOME\hermes-feishu-a2a" | Out-Null
+Set-Location "$HOME\hermes-feishu-a2a"
+py -3.11 -m venv .venv
+.venv\Scripts\python.exe -m pip install --upgrade pip
+.venv\Scripts\python.exe -m pip install "$HOME\Downloads\hermes_feishu_a2a-0.4.2-py3-none-any.whl"
+.venv\Scripts\hermes-a2a.exe --help
+```
+
+The virtual environment keeps Hermes and its dependencies separate from the computer's
+system Python. The examples call the executable by its full path, so shell activation is
+not required.
+
+### 3. Generate and edit the first configuration
+
+Run these commands from the `hermes-feishu-a2a` directory created above.
+
+macOS or Linux:
+
+```bash
+.venv/bin/hermes-a2a init --directory .
+.venv/bin/hermes-a2a validate-config --path config/agents.yaml --json
+.venv/bin/hermes-a2a doctor --offline --config config/agents.yaml --data-dir data
+```
+
+Windows PowerShell:
+
+```powershell
+.venv\Scripts\hermes-a2a.exe init --directory .
+.venv\Scripts\hermes-a2a.exe validate-config --path config\agents.yaml --json
+.venv\Scripts\hermes-a2a.exe doctor --offline --config config\agents.yaml --data-dir data
+```
+
+`init` creates the following local files without overwriting existing files:
+
+| Path | What to configure |
+| --- | --- |
+| `.env` | Runtime mode, API token, database, Agent endpoint policy and optional Feishu credentials |
+| `config/agents.yaml` | HTTP or Feishu Agents, capabilities and permissions |
+| `compose.yaml` | Docker deployment pinned to the installed Hermes release |
+| `examples/capability-routing.yaml` | Starter workflow definition |
+
+The generated token is suitable for an initial local run. Before production, set
+`HERMES_ENV=production`, add a narrow `HERMES_AGENT_ENDPOINT_ALLOWED_HOSTS` value and
+enable `HERMES_AGENT_ENDPOINT_REQUIRE_HTTPS=true` in `.env`. Add Feishu values only if
+the Feishu integration is needed. See [Production quick start](#quick-start) for the
+complete variable table and validation rules.
+
+### 4. Test, start and connect
+
+First run the isolated demonstration, which needs no credentials or external software:
+
+```bash
+.venv/bin/hermes-a2a demo
+```
+
+On Windows, use `.venv\Scripts\hermes-a2a.exe demo`. Then start the configured service:
+
+```bash
+.venv/bin/hermes-a2a serve
+```
+
+On Windows, use `.venv\Scripts\hermes-a2a.exe serve`. Keep that terminal open while
+Hermes is running, then check `http://127.0.0.1:8080/healthz` and open
+`http://127.0.0.1:8080/docs` to call the API from a browser or another application.
+Protected APIs require the `X-Hermes-Token` header containing the value generated in
+`.env`.
+
+For a background service with automatic restart, install Docker Desktop or Docker Engine
+and use the generated release-pinned Compose file:
+
+```bash
+docker compose pull
+docker compose up -d
+docker compose ps
+docker compose logs -f hermes
+```
+
+`docker compose down` stops Hermes without deleting its data. Do not run
+`docker compose down --volumes` unless all Agent, workflow and run records should be
+deleted. For Feishu, expose only `/webhooks/feishu` through an HTTPS reverse proxy; keep
+the Agent and workflow APIs on a private network. See [Production deployment](#production-deployment)
+for service-manager, backup and reverse-proxy guidance.
 
 ## Supported platforms
 
@@ -104,10 +214,6 @@ Compose starts Hermes, two independent mock Agents, and a one-shot demo runner. 
 
 The Python wheel is platform-independent. The published container supports
 `linux/amd64` and `linux/arm64`.
-
-## Architecture
-
-![Hermes Feishu A2A architecture](docs/assets/readme-architecture.svg)
 
 <a id="quick-start"></a>
 
@@ -250,6 +356,49 @@ Open these URLs after startup:
 
 `/readyz` returns HTTP 503 in production until the internal token and Agent endpoint allowlist are
 valid. When Feishu is configured, its required values and allowlists must also be real and complete.
+
+<a id="en-zero-credential-demo"></a>
+
+## Zero-credential demo
+
+The first run needs no Feishu tenant, app credentials, model API, or real business data.
+The demo starts a temporary Hermes environment and two loopback HTTP Agents, loads the
+researcher declaratively, registers the reviewer at runtime, routes the first task by
+capability, and proves the reviewer's update/delete audit lifecycle before removing all
+temporary state.
+
+macOS or Linux:
+
+```bash
+git clone https://github.com/ChrysFu/hermes-feishu-a2a.git
+cd hermes-feishu-a2a
+python3 -m venv .venv
+.venv/bin/python -m pip install .
+.venv/bin/hermes-a2a demo
+```
+
+Windows PowerShell:
+
+```powershell
+git clone https://github.com/ChrysFu/hermes-feishu-a2a.git
+Set-Location hermes-feishu-a2a
+py -3.11 -m venv .venv
+.venv\Scripts\python.exe -m pip install .
+.venv\Scripts\hermes-a2a.exe demo
+```
+
+Full container path:
+
+```bash
+docker compose -f docker-compose.demo.yml up --build --abort-on-container-exit --exit-code-from demo-runner
+docker compose -f docker-compose.demo.yml down --volumes
+```
+
+Compose starts Hermes, two independent mock Agents, and a one-shot demo runner. Hermes binds only to the host loopback interface, and runtime traffic stays inside an isolated Compose network; the first image build still downloads Python dependencies. The fixed demo token is public and restricted to this isolated demonstration. Never use it in production.
+
+## Architecture
+
+![Hermes Feishu A2A architecture](docs/assets/readme-architecture.svg)
 
 ## Docker
 
@@ -400,19 +549,56 @@ candidate list and every inclusion/exclusion reason are persisted with the task 
 
 ![Task lifecycle](docs/assets/task-lifecycle.svg)
 
-## Feishu setup
+## Feishu configuration guide
 
-1. Create a Feishu/Lark custom app and enable bot functionality.
-2. Grant message receive/send and chat read permissions required by your tenant.
-3. Grant `im:resource` for files attached directly to messages.
-4. Grant the application-identity scope `drive:file:download` for shared
-   `/file/...` cloud-space links. The broader `drive:drive:readonly` scope also
-   works, but is not required.
-5. Subscribe to `im.message.receive_v1`.
-6. Set the HTTPS callback to `https://your-host.example/webhooks/feishu`.
-7. Copy the app ID, app secret, encrypt key and verification token into `.env`.
-8. Add explicit chat and owner open IDs to the allow-lists.
-9. Publish the app version, obtain tenant approval, and add the bot to the target chat.
+The screenshots below use the current Feishu developer console. Click an image to open
+it at full resolution. Account identifiers, the live callback domain and the publisher
+name are redacted; the App Secret, Encrypt Key and Verification Token remain masked by
+the Feishu console. Menu wording can vary slightly between Feishu and Lark tenants.
+
+**1. Create an app and retrieve its credentials.** Create a Feishu/Lark custom app, then
+open **Basic information → Credentials & Basic Info**. Copy the App ID and App Secret to
+`HERMES_FEISHU_APP_ID` and `HERMES_FEISHU_APP_SECRET` in `.env`; never commit them to Git.
+
+[![Feishu credentials and basic information page](docs/assets/feishu-setup/01-app-credentials.png)](docs/assets/feishu-setup/01-app-credentials.png)
+
+**2. Enable the bot capability.** Open **App capabilities → Bot**, enable the capability,
+and set the bot name and description shown to users.
+
+[![Feishu bot capability page](docs/assets/feishu-setup/02-bot-capability.png)](docs/assets/feishu-setup/02-bot-capability.png)
+
+**3. Grant only the required API permissions.** Open **Development configuration →
+Permissions** and add the tenant's message receive/send and chat-read permissions. Add
+`im:resource` for files attached directly to messages. For shared `/file/...` cloud-space
+links, add the application-identity scope `drive:file:download`; the broader
+`drive:drive:readonly` also works but is not required.
+
+[![Feishu message and cloud file permissions](docs/assets/feishu-setup/03-permissions.png)](docs/assets/feishu-setup/03-permissions.png)
+
+[![Feishu im resource permission](docs/assets/feishu-setup/03b-file-permission.png)](docs/assets/feishu-setup/03b-file-permission.png)
+
+**4. Configure the callback and event subscription.** Open **Development configuration →
+Events & Callbacks → Event configuration**, choose delivery to a developer server, enter
+`https://your-host.example/webhooks/feishu`, and subscribe to `im.message.receive_v1`.
+The callback must be publicly reachable over HTTPS; the screenshot uses the documentation
+example domain.
+
+[![Feishu event subscription and callback URL](docs/assets/feishu-setup/04-event-subscription.png)](docs/assets/feishu-setup/04-event-subscription.png)
+
+**5. Configure encryption and allow-lists.** On the same page, open **Encryption strategy**
+and copy the Encrypt Key and Verification Token to `HERMES_FEISHU_ENCRYPT_KEY` and
+`HERMES_FEISHU_VERIFICATION_TOKEN` in `.env`. Add the exact target chat IDs to
+`HERMES_FEISHU_ALLOWED_CHAT_IDS` and trusted human owner open IDs to
+`HERMES_FEISHU_OWNER_OPEN_IDS`. Do not reveal secret values with the eye icon while
+recording or sharing screenshots.
+
+[![Feishu event encryption strategy page](docs/assets/feishu-setup/05-encryption.png)](docs/assets/feishu-setup/05-encryption.png)
+
+**6. Publish and add the bot to chats.** Open **App release → Version management & release**,
+create a version, submit it for tenant approval, and confirm that its status becomes
+published. Then add the bot to each chat included in the allow-list.
+
+[![Feishu version management and release page](docs/assets/feishu-setup/06-release.png)](docs/assets/feishu-setup/06-release.png)
 
 The webhook authenticates the raw request body before JSON parsing, then checks the
 verification token, chat ID and sender identity. An accepted message is an integration
@@ -445,6 +631,12 @@ scope and callback checklist.
 
 ## API reference
 
+Start Hermes and open `http://127.0.0.1:8080/docs` to explore and call these endpoints
+through the generated Swagger interface. Protected endpoints require the
+`X-Hermes-Token` header.
+
+[![Hermes interactive API documentation](docs/assets/readme/api-docs.png)](docs/assets/readme/api-docs.png)
+
 | Endpoint | Authentication | Purpose |
 | --- | --- | --- |
 | `GET /healthz` | Network restriction | Process health |
@@ -473,7 +665,7 @@ Published release assets include a platform-independent wheel and source archive
 Published container tags support `linux/amd64` and `linux/arm64`:
 
 ```bash
-docker pull ghcr.io/chrysfu/hermes-feishu-a2a:0.4.1
+docker pull ghcr.io/chrysfu/hermes-feishu-a2a:0.4.2
 ```
 
 See [deployment](docs/deployment.md), [best practices](docs/best-practices.md), and
@@ -521,52 +713,161 @@ Hermes 不包含 LLM 规划器或 Agent 运行时。调用方必须提交工作�
 
 ## 目录
 
-- [零凭据演示](#zh-zero-credential-demo)
+- [从 GitHub Releases 安装](#zh-release-install)
 - [支持的平台](#支持的平台)
-- [架构](#架构)
 - [生产配置快速开始](#zh-quick-start)
+- [零凭据演示](#zh-zero-credential-demo)
+- [架构](#架构)
 - [Docker](#docker-1)
 - [Agent 契约](#agent-契约)
 - [运行工作流](#运行工作流)
-- [飞书配置](#飞书配置)
+- [飞书配置指南](#飞书配置指南)
 - [API 参考](#api-参考)
 - [生产部署](#生产部署)
 - [开发](#开发)
 
-<a id="zh-zero-credential-demo"></a>
+<a id="zh-release-install"></a>
 
-## 零凭据演示
+## 从 GitHub Releases 安装
 
-首次体验不需要飞书租户、应用凭据、模型 API 或真实业务数据。演示会在本机启动临时 Hermes 环境和两个 loopback HTTP Agent，以声明方式加载 Researcher、通过运行时 API 注册 Reviewer、按能力路由第一项任务，并验证 Reviewer 的更新、删除和审计生命周期，最后清理全部临时状态。
+对于希望直接运行 Hermes、但不想克隆源码仓库的用户，这是推荐的安装方式。wheel
+会安装 `hermes-a2a` 命令，并可用于 Windows、macOS 和 Linux。它不是可双击运行的
+桌面应用：请先安装 Python 3.11 或更高版本，再在终端中执行下面的命令。
 
-macOS 或 Linux：
+打开[最新 GitHub Release](https://github.com/ChrysFu/hermes-feishu-a2a/releases/latest)
+并下载下列文件。示例使用 `v0.4.2`；若已有更新版本，请在文件名和命令中统一使用
+Release 页面显示的新版本号。
+
+| Release 文件 | 用途 |
+| --- | --- |
+| `hermes_feishu_a2a-0.4.2-py3-none-any.whl` | 所有受支持操作系统通用的推荐安装包 |
+| `SHA256SUMS` | 校验下载文件是否完整 |
+| `hermes_feishu_a2a-0.4.2.tar.gz` | 用于审查或从源码构建；常规安装不需要 |
+
+[![GitHub Release 下载文件](docs/assets/readme/release-downloads.png)](https://github.com/ChrysFu/hermes-feishu-a2a/releases/latest)
+
+### 1. 校验下载文件
+
+将命令输出的 wheel 哈希值与 `SHA256SUMS` 中对应文件的哈希值进行比较。
+
+macOS：
 
 ```bash
-git clone https://github.com/ChrysFu/hermes-feishu-a2a.git
-cd hermes-feishu-a2a
-python3 -m venv .venv
-.venv/bin/python -m pip install .
-.venv/bin/hermes-a2a demo
+cd ~/Downloads
+shasum -a 256 hermes_feishu_a2a-0.4.2-py3-none-any.whl
+cat SHA256SUMS
+```
+
+Linux：
+
+```bash
+cd ~/Downloads
+sha256sum hermes_feishu_a2a-0.4.2-py3-none-any.whl
+cat SHA256SUMS
 ```
 
 Windows PowerShell：
 
 ```powershell
-git clone https://github.com/ChrysFu/hermes-feishu-a2a.git
-Set-Location hermes-feishu-a2a
-py -3.11 -m venv .venv
-.venv\Scripts\python.exe -m pip install .
-.venv\Scripts\hermes-a2a.exe demo
+Set-Location "$HOME\Downloads"
+(Get-FileHash .\hermes_feishu_a2a-0.4.2-py3-none-any.whl -Algorithm SHA256).Hash.ToLowerInvariant()
+Get-Content .\SHA256SUMS
 ```
 
-完整容器链路：
+### 2. 把 wheel 安装到独立目录
+
+macOS 或 Linux：
 
 ```bash
-docker compose -f docker-compose.demo.yml up --build --abort-on-container-exit --exit-code-from demo-runner
-docker compose -f docker-compose.demo.yml down --volumes
+mkdir -p ~/hermes-feishu-a2a
+cd ~/hermes-feishu-a2a
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install ~/Downloads/hermes_feishu_a2a-0.4.2-py3-none-any.whl
+.venv/bin/hermes-a2a --help
 ```
 
-Compose 会启动 Hermes、两个独立的 mock Agent 和一次性演示运行器。Hermes 仅绑定主机 loopback，运行阶段只访问隔离的 Compose 内部网络；首次构建镜像仍需要下载 Python 依赖。演示令牌是公开、固定且仅用于隔离演示的值，不能用于生产。
+Windows PowerShell：
+
+```powershell
+New-Item -ItemType Directory -Force "$HOME\hermes-feishu-a2a" | Out-Null
+Set-Location "$HOME\hermes-feishu-a2a"
+py -3.11 -m venv .venv
+.venv\Scripts\python.exe -m pip install --upgrade pip
+.venv\Scripts\python.exe -m pip install "$HOME\Downloads\hermes_feishu_a2a-0.4.2-py3-none-any.whl"
+.venv\Scripts\hermes-a2a.exe --help
+```
+
+虚拟环境会把 Hermes 及其依赖与电脑的系统 Python 隔离。示例直接使用可执行文件的
+完整路径，因此无需激活 shell 环境，也适用于限制 PowerShell 脚本执行的电脑。
+
+### 3. 生成并编辑首次配置
+
+在上一步创建的 `hermes-feishu-a2a` 目录中执行以下命令。
+
+macOS 或 Linux：
+
+```bash
+.venv/bin/hermes-a2a init --directory .
+.venv/bin/hermes-a2a validate-config --path config/agents.yaml --json
+.venv/bin/hermes-a2a doctor --offline --config config/agents.yaml --data-dir data
+```
+
+Windows PowerShell：
+
+```powershell
+.venv\Scripts\hermes-a2a.exe init --directory .
+.venv\Scripts\hermes-a2a.exe validate-config --path config\agents.yaml --json
+.venv\Scripts\hermes-a2a.exe doctor --offline --config config\agents.yaml --data-dir data
+```
+
+`init` 会生成以下本地文件，且默认不会覆盖已经存在的文件：
+
+| 路径 | 需要配置的内容 |
+| --- | --- |
+| `.env` | 运行模式、API 令牌、数据库、Agent 端点策略和可选飞书凭据 |
+| `config/agents.yaml` | HTTP 或飞书 Agent、能力和权限 |
+| `compose.yaml` | 固定到当前 Hermes Release 的 Docker 部署文件 |
+| `examples/capability-routing.yaml` | 入门工作流定义 |
+
+自动生成的令牌可用于首次本地运行。生产部署前，应在 `.env` 中设置
+`HERMES_ENV=production`，为 `HERMES_AGENT_ENDPOINT_ALLOWED_HOSTS` 填写范围尽可能小的
+允许列表，并启用 `HERMES_AGENT_ENDPOINT_REQUIRE_HTTPS=true`。只有需要飞书集成时才添加
+飞书配置。完整变量和验证规则见[生产配置快速开始](#zh-quick-start)。
+
+### 4. 测试、启动并连接软件
+
+先运行不需要凭据或外部软件的隔离演示：
+
+```bash
+.venv/bin/hermes-a2a demo
+```
+
+Windows 使用 `.venv\Scripts\hermes-a2a.exe demo`。确认演示通过后启动已配置的服务：
+
+```bash
+.venv/bin/hermes-a2a serve
+```
+
+Windows 使用 `.venv\Scripts\hermes-a2a.exe serve`。Hermes 运行期间应保持该终端打开，
+然后访问 `http://127.0.0.1:8080/healthz` 检查状态，并打开
+`http://127.0.0.1:8080/docs`，从浏览器或其他软件调用 API。受保护 API 需要携带
+`X-Hermes-Token` 请求头，其值是 `.env` 中自动生成的内部令牌。
+
+如需后台常驻和自动重启，请安装 Docker Desktop 或 Docker Engine，并使用自动生成、
+固定到 Release 版本的 Compose 文件：
+
+```bash
+docker compose pull
+docker compose up -d
+docker compose ps
+docker compose logs -f hermes
+```
+
+`docker compose down` 会停止 Hermes 但保留数据。除非确实要删除所有 Agent、工作流和
+运行记录，否则不要执行 `docker compose down --volumes`。接入飞书时，只通过 HTTPS
+反向代理公开 `/webhooks/feishu`，Agent 和工作流 API 应保留在私有网络中。服务管理、
+备份和反向代理说明见[生产部署](#生产部署)。
 
 ## 支持的平台
 
@@ -577,10 +878,6 @@ Compose 会启动 Hermes、两个独立的 mock Agent 和一次性演示运行�
 | Linux | Python 3.11 或更高版本 | Docker Engine 与 Compose v2 | `ubuntu-latest` |
 
 Python wheel 与平台无关。发布的容器支持 `linux/amd64` 和 `linux/arm64`。
-
-## 架构
-
-![Hermes 飞书 A2A 架构](docs/assets/readme-architecture.svg)
 
 <a id="zh-quick-start"></a>
 
@@ -715,6 +1012,45 @@ Windows PowerShell：
 
 在生产模式下，内部令牌和 Agent 端点允许列表有效后，`/readyz` 才不会返回 HTTP 503。若已配置飞书，其必需值与允许列表也必须真实且完整。
 
+<a id="zh-zero-credential-demo"></a>
+
+## 零凭据演示
+
+首次体验不需要飞书租户、应用凭据、模型 API 或真实业务数据。演示会在本机启动临时 Hermes 环境和两个 loopback HTTP Agent，以声明方式加载 Researcher、通过运行时 API 注册 Reviewer、按能力路由第一项任务，并验证 Reviewer 的更新、删除和审计生命周期，最后清理全部临时状态。
+
+macOS 或 Linux：
+
+```bash
+git clone https://github.com/ChrysFu/hermes-feishu-a2a.git
+cd hermes-feishu-a2a
+python3 -m venv .venv
+.venv/bin/python -m pip install .
+.venv/bin/hermes-a2a demo
+```
+
+Windows PowerShell：
+
+```powershell
+git clone https://github.com/ChrysFu/hermes-feishu-a2a.git
+Set-Location hermes-feishu-a2a
+py -3.11 -m venv .venv
+.venv\Scripts\python.exe -m pip install .
+.venv\Scripts\hermes-a2a.exe demo
+```
+
+完整容器链路：
+
+```bash
+docker compose -f docker-compose.demo.yml up --build --abort-on-container-exit --exit-code-from demo-runner
+docker compose -f docker-compose.demo.yml down --volumes
+```
+
+Compose 会启动 Hermes、两个独立的 mock Agent 和一次性演示运行器。Hermes 仅绑定主机 loopback，运行阶段只访问隔离的 Compose 内部网络；首次构建镜像仍需要下载 Python 依赖。演示令牌是公开、固定且仅用于隔离演示的值，不能用于生产。
+
+## 架构
+
+![Hermes 飞书 A2A 架构](docs/assets/readme-architecture.svg)
+
 ## Docker
 
 Docker 使用上面创建的相同 `.env` 和 `config/agents.yaml` 文件。
@@ -841,17 +1177,50 @@ Selector 要求能力、权限、传输和标量 metadata 精确匹配。离线�
 
 ![任务生命周期](docs/assets/task-lifecycle.svg)
 
-## 飞书配置
+## 飞书配置指南
 
-1. 创建飞书/Lark 自建应用并启用机器人功能。
-2. 授予租户所需的消息接收/发送和会话读取权限。
-3. 对直接附加到消息的文件授予 `im:resource`。
-4. 对共享的 `/file/...` 云空间链接授予应用身份权限 `drive:file:download`。更宽泛的 `drive:drive:readonly` 权限也可用，但并非必需。
-5. 订阅 `im.message.receive_v1`。
-6. 将 HTTPS 回调设置为 `https://your-host.example/webhooks/feishu`。
-7. 将应用 ID、应用密钥、加密密钥和验证令牌复制到 `.env`。
-8. 将明确的会话 ID 和所有者 open ID 加入白名单。
-9. 发布应用版本、取得租户审批，并将机器人加入目标会话。
+以下截图来自当前飞书开发者后台，点击图片可查看原始尺寸。账户标识、实际回调域名和
+发布者姓名已经脱敏；App Secret、Encrypt Key 和 Verification Token 保持飞书后台的
+原生掩码状态。飞书与 Lark 租户的菜单文字可能略有不同。
+
+**1. 创建应用并取得凭证。**创建飞书/Lark 自建应用，然后打开**基础信息 → 凭证与基础信息**。
+将 App ID 和 App Secret 分别复制到 `.env` 的 `HERMES_FEISHU_APP_ID` 和
+`HERMES_FEISHU_APP_SECRET`，不要提交到 Git。
+
+[![飞书凭证与基础信息页面](docs/assets/feishu-setup/01-app-credentials.png)](docs/assets/feishu-setup/01-app-credentials.png)
+
+**2. 启用机器人能力。**打开**应用能力 → 机器人**，启用机器人能力，并设置向用户展示的
+机器人名称和描述。
+
+[![飞书机器人能力页面](docs/assets/feishu-setup/02-bot-capability.png)](docs/assets/feishu-setup/02-bot-capability.png)
+
+**3. 仅授予所需 API 权限。**打开**开发配置 → 权限管理**，添加租户所需的消息接收/发送
+和会话读取权限；对消息直接附加的文件添加 `im:resource`。若需读取共享的 `/file/...`
+云空间链接，再添加应用身份权限 `drive:file:download`；更宽泛的
+`drive:drive:readonly` 也可使用，但并非必需。
+
+[![飞书消息和云空间文件权限](docs/assets/feishu-setup/03-permissions.png)](docs/assets/feishu-setup/03-permissions.png)
+
+[![飞书 im resource 文件资源权限](docs/assets/feishu-setup/03b-file-permission.png)](docs/assets/feishu-setup/03b-file-permission.png)
+
+**4. 配置回调和事件订阅。**打开**开发配置 → 事件与回调 → 事件配置**，选择发送到开发者
+服务器，填写 `https://your-host.example/webhooks/feishu`，并订阅
+`im.message.receive_v1`。回调地址必须能通过公网 HTTPS 访问；截图中的域名已替换为文档示例。
+
+[![飞书事件订阅和回调地址](docs/assets/feishu-setup/04-event-subscription.png)](docs/assets/feishu-setup/04-event-subscription.png)
+
+**5. 配置加密参数和白名单。**在同一页面打开**加密策略**，将 Encrypt Key 和
+Verification Token 分别复制到 `.env` 的 `HERMES_FEISHU_ENCRYPT_KEY` 和
+`HERMES_FEISHU_VERIFICATION_TOKEN`。将准确的目标会话 ID 写入
+`HERMES_FEISHU_ALLOWED_CHAT_IDS`，将可信人类所有者 open ID 写入
+`HERMES_FEISHU_OWNER_OPEN_IDS`。录屏或分享截图时不要点击眼睛图标显示真实值。
+
+[![飞书事件加密策略页面](docs/assets/feishu-setup/05-encryption.png)](docs/assets/feishu-setup/05-encryption.png)
+
+**6. 发布应用并把机器人加入会话。**打开**应用发布 → 版本管理与发布**，创建版本并提交
+租户审批；确认状态变为“已发布”后，再把机器人加入白名单中的每个目标会话。
+
+[![飞书版本管理与发布页面](docs/assets/feishu-setup/06-release.png)](docs/assets/feishu-setup/06-release.png)
 
 Webhook 在解析 JSON 前对原始请求体进行身份验证，然后检查验证令牌、会话 ID 和发送者身份。已接受的消息是集成事件；本服务不会自动把自然语言转换成工作流。如需这种行为，请使用外部规划器或适配器调用工作流 API。
 
@@ -873,6 +1242,11 @@ Webhook 在解析 JSON 前对原始请求体进行身份验证，然后检查验
 ![安全模型](docs/assets/security-model.svg)
 
 ## API 参考
+
+启动 Hermes 后打开 `http://127.0.0.1:8080/docs`，即可通过自动生成的 Swagger 界面
+查看并调用这些端点。受保护的端点需要 `X-Hermes-Token` 请求头。
+
+[![Hermes 交互式 API 文档](docs/assets/readme/api-docs.png)](docs/assets/readme/api-docs.png)
 
 | 端点 | 身份验证 | 用途 |
 | --- | --- | --- |
@@ -901,7 +1275,7 @@ Webhook 在解析 JSON 前对原始请求体进行身份验证，然后检查验
 发布资产包括与平台无关的 wheel 和源代码归档。发布的容器标签支持 `linux/amd64` 和 `linux/arm64`：
 
 ```bash
-docker pull ghcr.io/chrysfu/hermes-feishu-a2a:0.4.1
+docker pull ghcr.io/chrysfu/hermes-feishu-a2a:0.4.2
 ```
 
 运行细节见[部署](docs/deployment.md)、[最佳实践](docs/best-practices.md)和[故障排除](docs/troubleshooting.md)。
